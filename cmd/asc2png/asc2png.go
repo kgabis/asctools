@@ -11,15 +11,33 @@ import (
 	"os"
 )
 
-func Asc2Png() {
+func Asc2Png(args []string) {
+	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
+
 	var inputDir string
-	flag.StringVar(&inputDir, "input_dir", "", "Path to the input dir with .asc files that will be merged")
+	fs.StringVar(&inputDir, "input_dir", "", "Path to the input dir with .asc files that will be merged")
 
 	var outputFileName string
-	flag.StringVar(&outputFileName, "output", "", "Path to the output .stl file")
+	fs.StringVar(&outputFileName, "output", "", "Path to the output .stl file")
 
-	flag.Parse()
+	fs.Parse(args)
 
+	if inputDir == "" {
+		fmt.Println("Error: input_dir is required")
+		flag.Usage()
+		return
+	}
+
+	if outputFileName == "" {
+		fmt.Println("Error: output is required")
+		flag.Usage()
+		return
+	}
+
+	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
+		fmt.Printf("Error: input_dir '%s' does not exist\n", inputDir)
+		return
+	}
 	elevationMap, err := lidartools.ASCDirToElevationMap(inputDir)
 	if err != nil {
 		fmt.Println("Error reading elevation map:", err)

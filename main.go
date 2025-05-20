@@ -12,7 +12,8 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "asc2png":
-		asc2png.Asc2Png()
+		asc2png.Asc2Png(os.Args[2:])
+		break
 	default:
 		fmt.Println("Unknown command")
 	}
