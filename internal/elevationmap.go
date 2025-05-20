@@ -171,3 +171,19 @@ func readASCFile(filePath string) (MapSlice, error) {
 
 	return slice, nil
 }
+
+func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
+	for _, slice := range elevationMap.MapSlices {
+		if x >= slice.MinX && x < slice.MaxX && y >= slice.MinY && y < slice.MaxY {
+			sliceY := y - slice.MinY
+			sliceX := x - slice.MinX
+			if sliceY >= 0 && sliceY < len(slice.Data) && sliceX >= 0 && sliceX < len(slice.Data[sliceY]) {
+				value := slice.Data[sliceY][sliceX]
+				if value != -9999.0 {
+					return value
+				}
+			}
+		}
+	}
+	return -9999.0
+}
