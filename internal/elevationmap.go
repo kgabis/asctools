@@ -26,6 +26,44 @@ type MapSlice struct {
 	MaxElevation float64
 }
 
+// FixHoles interpolates missing values (NodataValue) in the map slice.
+func (slice *MapSlice) FixHoles() {
+	for y := 0; y < slice.Height; y++ {
+		for x := 0; x < slice.Width; x++ {
+			if slice.Data[y][x] == NodataValue {
+				slice.Data[y][x] = slice.interpolateValue(x, y)
+			}
+		}
+	}
+}
+
+// interpolateValue calculates the average of valid neighboring cells.
+func (slice *MapSlice) interpolateValue(x, y int) float64 {
+	var sum float64
+	var count int
+
+	directions := []struct{ dx, dy int }{
+		{-1, 0}, {1, 0}, {0, -1}, {0, 1}, // Cardinal directions
+		{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, // Diagonal directions
+	}
+
+	for _, dir := range directions {
+		neighborX, neighborY := x+dir.dx, y+dir.dy
+		if neighborX >= 0 && neighborX < slice.Width && neighborY >= 0 && neighborY < slice.Height {
+			neighborValue := slice.Data[neighborY][neighborX]
+			if neighborValue != NodataValue {
+				sum += neighborValue
+				count++
+			}
+		}
+	}
+
+	if count > 0 {
+		return sum / float64(count)
+	}
+	return NodataValue // Return NodataValue if no valid neighbors
+}
+
 type ElevationMap struct {
 	MapSlices    []MapSlice
 	MinX         int
@@ -45,8 +83,6 @@ func ASCDirToElevationMap(inputDir string) (*ElevationMap, error) {
 	result := ElevationMap{
 		MinX:         math.MaxInt,
 		MaxX:         -math.MaxInt,
-		MinY:         math.MaxInt,
-		MaxY:         -math.MaxInt,
 		MinElevation: math.MaxFloat32,
 		MaxElevation: -math.MaxFloat32,
 	}
@@ -81,6 +117,11 @@ func ASCDirToElevationMap(inputDir string) (*ElevationMap, error) {
 		if slice.MaxElevation > result.MaxElevation {
 			result.MaxElevation = slice.MaxElevation
 		}
+	}
+
+	// Fix holes in the elevation map
+	for i := range result.MapSlices {
+		result.MapSlices[i].FixHoles()
 	}
 
 	return &result, nil
