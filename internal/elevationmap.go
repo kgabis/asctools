@@ -11,9 +11,7 @@ import (
 
 const NodataValue = -9999.0
 
-type MapSlice struct {
-	CenterX      float64
-	CenterY      float64
+type ElevationMap struct {
 	Width        int
 	Height       int
 	CellSize     float64
@@ -26,66 +24,13 @@ type MapSlice struct {
 	MaxElevation float64
 }
 
-// FixHoles interpolates missing values (NodataValue) in the map slice.
-func (slice *MapSlice) FixHoles() {
-	for y := 0; y < slice.Height; y++ {
-		for x := 0; x < slice.Width; x++ {
-			if slice.Data[y][x] == NodataValue {
-				slice.Data[y][x] = slice.interpolateValue(x, y)
-			}
-		}
-	}
-}
-
-// interpolateValue calculates the average of valid neighboring cells.
-func (slice *MapSlice) interpolateValue(x, y int) float64 {
-	var sum float64
-	var count int
-
-	directions := []struct{ dx, dy int }{
-		{-1, 0}, {1, 0}, {0, -1}, {0, 1}, // Cardinal directions
-		{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, // Diagonal directions
-	}
-
-	for _, dir := range directions {
-		neighborX, neighborY := x+dir.dx, y+dir.dy
-		if neighborX >= 0 && neighborX < slice.Width && neighborY >= 0 && neighborY < slice.Height {
-			neighborValue := slice.Data[neighborY][neighborX]
-			if neighborValue != NodataValue {
-				sum += neighborValue
-				count++
-			}
-		}
-	}
-
-	if count > 0 {
-		return sum / float64(count)
-	}
-	return NodataValue // Return NodataValue if no valid neighbors
-}
-
-type ElevationMap struct {
-	MapSlices    []MapSlice
-	MinX         int
-	MaxX         int
-	MinY         int
-	MaxY         int
-	MinElevation float64
-	MaxElevation float64
-}
-
 func ASCDirToElevationMap(inputDir string) (*ElevationMap, error) {
 	files, err := os.ReadDir(inputDir)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading input directory: %v", err)
 	}
 
-	result := ElevationMap{
-		MinX:         math.MaxInt,
-		MaxX:         -math.MaxInt,
-		MinElevation: math.MaxFloat32,
-		MaxElevation: -math.MaxFloat32,
-	}
+	var maps []ElevationMap
 
 	for _, file := range files {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".asc") {
@@ -94,49 +39,138 @@ func ASCDirToElevationMap(inputDir string) (*ElevationMap, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Error reading ASC file: %v", err)
 			}
-			result.MapSlices = append(result.MapSlices, slice)
+			maps = append(maps, slice)
 		}
 	}
 
-	for _, slice := range result.MapSlices {
-		if slice.MinX < result.MinX {
-			result.MinX = slice.MinX
-		}
-		if slice.MinY < result.MinY {
-			result.MinY = slice.MinY
-		}
-		if slice.MaxX > result.MaxX {
-			result.MaxX = slice.MaxX
-		}
-		if slice.MaxY > result.MaxY {
-			result.MaxY = slice.MaxY
-		}
-		if slice.MinElevation < result.MinElevation {
-			result.MinElevation = slice.MinElevation
-		}
-		if slice.MaxElevation > result.MaxElevation {
-			result.MaxElevation = slice.MaxElevation
-		}
-	}
+	merged := mergeMaps(maps)
 
-	// Fix holes in the elevation map
-	for i := range result.MapSlices {
-		result.MapSlices[i].FixHoles()
-	}
+	merged.fixHoles()
 
-	return &result, nil
+	return merged, nil
 }
 
-func readASCFile(filePath string) (MapSlice, error) {
+func mergeMaps(maps []ElevationMap) *ElevationMap {
+	if len(maps) == 0 {
+		return nil
+	}
+
+	// Determine the bounds of the merged map
+	minX, minY := math.MaxInt, math.MaxInt
+	maxX, maxY := -math.MaxInt, -math.MaxInt
+	for _, m := range maps {
+		if m.MinX < minX {
+			minX = m.MinX
+		}
+		if m.MinY < minY {
+			minY = m.MinY
+		}
+		if m.MaxX > maxX {
+			maxX = m.MaxX
+		}
+		if m.MaxY > maxY {
+			maxY = m.MaxY
+		}
+	}
+
+	// Calculate dimensions of the merged map
+	width := maxX - minX
+	height := maxY - minY
+
+	// Initialize the merged map
+	merged := &ElevationMap{
+		MinX:         minX,
+		MinY:         minY,
+		MaxX:         maxX,
+		MaxY:         maxY,
+		Width:        width,
+		Height:       height,
+		CellSize:     maps[0].CellSize,
+		MinElevation: math.MaxFloat64,
+		MaxElevation: -math.MaxFloat64,
+		Data:         make([][]float64, height),
+	}
+
+	for i := range merged.Data {
+		merged.Data[i] = make([]float64, width)
+		for j := range merged.Data[i] {
+			merged.Data[i][j] = NodataValue
+		}
+	}
+
+	// Merge the maps
+	for _, m := range maps {
+		for y := 0; y < m.Height; y++ {
+			for x := 0; x < m.Width; x++ {
+				globalX := m.MinX + x
+				globalY := m.MinY + y
+				mergedX := globalX - minX
+				mergedY := globalY - minY
+
+				value := m.Data[y][x]
+				if value != NodataValue {
+					merged.Data[mergedY][mergedX] = value
+					if value < merged.MinElevation {
+						merged.MinElevation = value
+					}
+					if value > merged.MaxElevation {
+						merged.MaxElevation = value
+					}
+				}
+			}
+		}
+	}
+
+	return merged
+}
+
+func (elevationMap *ElevationMap) fixHoles() {
+	for y := 0; y < elevationMap.Height; y++ {
+		for x := 0; x < elevationMap.Width; x++ {
+			if elevationMap.Data[y][x] == NodataValue {
+				neighbors := elevationMap.getValidNeighbors(x, y)
+				if len(neighbors) > 0 {
+					sum := 0.0
+					for _, value := range neighbors {
+						sum += value
+					}
+					elevationMap.Data[y][x] = sum / float64(len(neighbors))
+				}
+			}
+		}
+	}
+}
+
+func (elevationMap *ElevationMap) getValidNeighbors(x, y int) []float64 {
+	var neighbors []float64
+	directions := []struct{ dx, dy int }{
+		{-1, 0}, {1, 0}, {0, -1}, {0, 1}, // Cardinal directions
+		{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, // Diagonal directions
+	}
+
+	for _, dir := range directions {
+		nx, ny := x+dir.dx, y+dir.dy
+		if nx >= 0 && nx < elevationMap.Width && ny >= 0 && ny < elevationMap.Height {
+			value := elevationMap.Data[ny][nx]
+			if value != NodataValue {
+				neighbors = append(neighbors, value)
+			}
+		}
+	}
+
+	return neighbors
+}
+
+func readASCFile(filePath string) (ElevationMap, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return MapSlice{}, fmt.Errorf("error opening file: %v", err)
+		return ElevationMap{}, fmt.Errorf("error opening file: %v", err)
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
-	slice := MapSlice{
+	elevationMap := ElevationMap{
 		MinX:         math.MaxInt,
 		MinY:         math.MaxInt,
 		MaxX:         -math.MaxInt,
@@ -145,92 +179,91 @@ func readASCFile(filePath string) (MapSlice, error) {
 		MaxElevation: -math.MaxFloat32,
 	}
 
-	sliceNodataValue := NodataValue
+	mapNodataValue := NodataValue
+	centerX := 0.0
+	centerY := 0.0
 	for i := 0; i < 6; i++ {
 		scanner.Scan()
 		parts := strings.Fields(scanner.Text())
 		if len(parts) != 2 {
-			return slice, fmt.Errorf("invalid header line: %s", scanner.Text())
+			return elevationMap, fmt.Errorf("invalid header line: %s", scanner.Text())
 		}
 		switch strings.ToLower(parts[0]) {
 		case "ncols":
-			slice.Width, _ = strconv.Atoi(parts[1])
+			elevationMap.Width, _ = strconv.Atoi(parts[1])
 		case "nrows":
-			slice.Height, _ = strconv.Atoi(parts[1])
+			elevationMap.Height, _ = strconv.Atoi(parts[1])
 		case "xllcenter":
-			slice.CenterX, _ = strconv.ParseFloat(parts[1], 64)
+			centerX, _ = strconv.ParseFloat(parts[1], 64)
 		case "yllcenter":
-			slice.CenterY, _ = strconv.ParseFloat(parts[1], 64)
+			centerY, _ = strconv.ParseFloat(parts[1], 64)
 		case "cellsize":
-			slice.CellSize, _ = strconv.ParseFloat(parts[1], 64)
+			elevationMap.CellSize, _ = strconv.ParseFloat(parts[1], 64)
 		case "nodata_value":
-			sliceNodataValue, _ = strconv.ParseFloat(parts[1], 64)
+			mapNodataValue, _ = strconv.ParseFloat(parts[1], 64)
 		}
 	}
 
 	// Read grid data
-	slice.Data = make([][]float64, slice.Height)
-	for i := range slice.Data {
-		slice.Data[i] = make([]float64, slice.Width)
+	elevationMap.Data = make([][]float64, elevationMap.Height)
+	for i := range elevationMap.Data {
+		elevationMap.Data[i] = make([]float64, elevationMap.Width)
 		if !scanner.Scan() {
-			return slice, fmt.Errorf("unexpected end of file at row %d", i)
+			return elevationMap, fmt.Errorf("unexpected end of file at row %d", i)
 		}
 		row := strings.Fields(scanner.Text())
-		if len(row) != slice.Width {
-			return slice, fmt.Errorf("wrong number of columns at row %d", i)
+		if len(row) != elevationMap.Width {
+			return elevationMap, fmt.Errorf("wrong number of columns at row %d", i)
 		}
 		for j, v := range row {
 			val, _ := strconv.ParseFloat(v, 64)
-			if val == sliceNodataValue {
+			if val == mapNodataValue {
 				val = NodataValue
 			}
-			slice.Data[i][j] = val
+			elevationMap.Data[i][j] = val
 		}
 	}
 
 	// Flip the data vertically
-	for i := 0; i < len(slice.Data)/2; i++ {
-		slice.Data[i], slice.Data[len(slice.Data)-1-i] = slice.Data[len(slice.Data)-1-i], slice.Data[i]
+	for i := 0; i < len(elevationMap.Data)/2; i++ {
+		elevationMap.Data[i], elevationMap.Data[len(elevationMap.Data)-1-i] = elevationMap.Data[len(elevationMap.Data)-1-i], elevationMap.Data[i]
 	}
 
 	// Find min and max elevation values
-	for _, row := range slice.Data {
+	for _, row := range elevationMap.Data {
 		for _, value := range row {
-			if value != sliceNodataValue {
-				if value < slice.MinElevation {
-					slice.MinElevation = value
+			if value != mapNodataValue {
+				if value < elevationMap.MinElevation {
+					elevationMap.MinElevation = value
 				}
-				if value > slice.MaxElevation {
-					slice.MaxElevation = value
+				if value > elevationMap.MaxElevation {
+					elevationMap.MaxElevation = value
 				}
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return MapSlice{}, fmt.Errorf("error reading file: %v", err)
+		return ElevationMap{}, fmt.Errorf("error reading file: %v", err)
 	}
 
-	slice.MinX = int(slice.CenterX - float64(slice.Width)/2)
-	slice.MaxX = int(slice.CenterX + float64(slice.Width)/2)
-	slice.MinY = int(slice.CenterY - float64(slice.Height)/2)
-	slice.MaxY = int(slice.CenterY + float64(slice.Height)/2)
+	elevationMap.MinX = int(centerX - float64(elevationMap.Width)/2)
+	elevationMap.MaxX = int(centerX + float64(elevationMap.Width)/2)
+	elevationMap.MinY = int(centerY - float64(elevationMap.Height)/2)
+	elevationMap.MaxY = int(centerY + float64(elevationMap.Height)/2)
 
-	return slice, nil
+	return elevationMap, nil
 }
 
 func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
-	for _, slice := range elevationMap.MapSlices {
-		if x >= slice.MinX && x < slice.MaxX && y >= slice.MinY && y < slice.MaxY {
-			sliceY := y - slice.MinY
-			sliceX := x - slice.MinX
-			if sliceY >= 0 && sliceY < len(slice.Data) && sliceX >= 0 && sliceX < len(slice.Data[sliceY]) {
-				value := slice.Data[sliceY][sliceX]
-				if value != NodataValue {
-					return value
-				}
-			}
+	if x >= elevationMap.MinX && x < elevationMap.MaxX && y >= elevationMap.MinY && y < elevationMap.MaxY {
+		mapY := y - elevationMap.MinY
+		mapX := x - elevationMap.MinX
+		if mapY >= 0 && mapY < len(elevationMap.Data) && mapX >= 0 && mapX < len(elevationMap.Data[mapY]) {
+			value := elevationMap.Data[mapY][mapX]
+			return value
 		}
 	}
+
 	return NodataValue
 }
