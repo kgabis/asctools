@@ -9,13 +9,14 @@ import (
 	"strings"
 )
 
+const NodataValue = -9999.0
+
 type MapSlice struct {
 	CenterX      float64
 	CenterY      float64
 	Width        int
 	Height       int
 	CellSize     float64
-	NodataValue  float64
 	MinX         int
 	MaxX         int
 	MinY         int
@@ -103,6 +104,7 @@ func readASCFile(filePath string) (MapSlice, error) {
 		MaxElevation: -math.MaxFloat32,
 	}
 
+	sliceNodataValue := NodataValue
 	for i := 0; i < 6; i++ {
 		scanner.Scan()
 		parts := strings.Fields(scanner.Text())
@@ -121,7 +123,7 @@ func readASCFile(filePath string) (MapSlice, error) {
 		case "cellsize":
 			slice.CellSize, _ = strconv.ParseFloat(parts[1], 64)
 		case "nodata_value":
-			slice.NodataValue, _ = strconv.ParseFloat(parts[1], 64)
+			sliceNodataValue, _ = strconv.ParseFloat(parts[1], 64)
 		}
 	}
 
@@ -137,7 +139,11 @@ func readASCFile(filePath string) (MapSlice, error) {
 			return slice, fmt.Errorf("wrong number of columns at row %d", i)
 		}
 		for j, v := range row {
-			slice.Data[i][j], _ = strconv.ParseFloat(v, 64)
+			val, _ := strconv.ParseFloat(v, 64)
+			if val == sliceNodataValue {
+				val = NodataValue
+			}
+			slice.Data[i][j] = val
 		}
 	}
 
@@ -149,7 +155,7 @@ func readASCFile(filePath string) (MapSlice, error) {
 	// Find min and max elevation values
 	for _, row := range slice.Data {
 		for _, value := range row {
-			if value != slice.NodataValue {
+			if value != sliceNodataValue {
 				if value < slice.MinElevation {
 					slice.MinElevation = value
 				}
@@ -179,11 +185,11 @@ func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
 			sliceX := x - slice.MinX
 			if sliceY >= 0 && sliceY < len(slice.Data) && sliceX >= 0 && sliceX < len(slice.Data[sliceY]) {
 				value := slice.Data[sliceY][sliceX]
-				if value != -9999.0 {
+				if value != NodataValue {
 					return value
 				}
 			}
 		}
 	}
-	return -9999.0
+	return NodataValue
 }
