@@ -125,40 +125,25 @@ func mergeMaps(maps []ElevationMap) *ElevationMap {
 }
 
 func (elevationMap *ElevationMap) fixHoles() {
-	for y := 0; y < elevationMap.Height; y++ {
-		for x := 0; x < elevationMap.Width; x++ {
-			if elevationMap.Data[y][x] == NodataValue {
-				neighbors := elevationMap.getValidNeighbors(x, y)
-				if len(neighbors) > 0 {
-					sum := 0.0
-					for _, value := range neighbors {
-						sum += value
-					}
-					elevationMap.Data[y][x] = sum / float64(len(neighbors))
-				}
+	for y := 1; y < elevationMap.Height-1; y++ {
+		for x := 1; x < elevationMap.Width-1; x++ {
+			if elevationMap.Data[y][x] != NodataValue {
+				continue
+			}
+			above := elevationMap.Data[y-1][x]
+			below := elevationMap.Data[y+1][x]
+			if above != NodataValue && below != NodataValue {
+				elevationMap.Data[y][x] = (above + below) / 2
+				continue
+			}
+			left := elevationMap.Data[y][x-1]
+			right := elevationMap.Data[y][x+1]
+			if left != NodataValue && right != NodataValue {
+				elevationMap.Data[y][x] = (left + right) / 2
+				continue
 			}
 		}
 	}
-}
-
-func (elevationMap *ElevationMap) getValidNeighbors(x, y int) []float64 {
-	var neighbors []float64
-	directions := []struct{ dx, dy int }{
-		{-1, 0}, {1, 0}, {0, -1}, {0, 1}, // Cardinal directions
-		{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, // Diagonal directions
-	}
-
-	for _, dir := range directions {
-		nx, ny := x+dir.dx, y+dir.dy
-		if nx >= 0 && nx < elevationMap.Width && ny >= 0 && ny < elevationMap.Height {
-			value := elevationMap.Data[ny][nx]
-			if value != NodataValue {
-				neighbors = append(neighbors, value)
-			}
-		}
-	}
-
-	return neighbors
 }
 
 func readASCFile(filePath string) (ElevationMap, error) {
