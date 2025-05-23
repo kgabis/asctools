@@ -11,14 +11,14 @@ import (
 	"os"
 )
 
-func Asc2Png(args []string) {
+func Cmd(args []string) {
 	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
 
 	var inputDir string
 	fs.StringVar(&inputDir, "input_dir", "", "Path to the input dir with .asc files that will be merged")
 
 	var outputFileName string
-	fs.StringVar(&outputFileName, "output", "", "Path to the output .stl file")
+	fs.StringVar(&outputFileName, "output", "", "Path to the output .png file")
 
 	fs.Parse(args)
 
@@ -77,8 +77,8 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 	for y := elevationMap.MinY; y < elevationMap.MaxY; y++ {
 		for x := elevationMap.MinX; x < elevationMap.MaxX; x++ {
 			elevation := elevationMap.GetElevation(x, y)
-			if elevation == -9999.0 {
-				img.SetRGBA64(x-elevationMap.MinX, y-elevationMap.MinY, color.RGBA64{R: math.MaxUint16, G: 0, B: math.MaxUint16, A: math.MaxUint16})
+			if elevation == lidartools.NodataValue {
+				img.SetRGBA64(x-elevationMap.MinX, y-elevationMap.MinY, color.RGBA64{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				normalized := (elevation - elevationMap.MinElevation) / elevationRange
 				grayValue := uint16(normalized * math.MaxUint16)

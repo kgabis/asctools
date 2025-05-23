@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"lidartools/cmd/asc2png"
+	"lidartools/cmd/diffasc2png"
 	"os"
 )
 
@@ -12,8 +13,10 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "asc2png":
-		asc2png.Asc2Png(os.Args[2:])
+		asc2png.Cmd(os.Args[2:])
 		break
+	case "diffasc2png":
+		diffasc2png.Cmd(os.Args[2:])
 	default:
 		fmt.Println("Unknown command")
 	}
