@@ -89,22 +89,54 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 
 	img := image.NewRGBA64(image.Rect(0, 0, width, height))
 
+	maxDiff := -math.MaxFloat64
+
+	for y := minY; y < maxY; y++ {
+		for x := minX; x < maxX; x++ {
+			elevation1 := elevationMap1.GetElevation(x, y)
+			elevation2 := elevationMap2.GetElevation(x, y)
+			if elevation1 != lidartools.NodataValue && elevation2 != lidartools.NodataValue {
+				diff := math.Abs(elevation2 - elevation1)
+				if diff > maxDiff {
+					maxDiff = diff
+				}
+			}
+		}
+	}
+
 	elevationRange1 := elevationMap1.MaxElevation - elevationMap1.MinElevation
 	elevationRange2 := elevationMap2.MaxElevation - elevationMap2.MinElevation
 	elevationRange := math.Max(elevationRange1, elevationRange2)
 
 	for y := minY; y < maxY; y++ {
 		for x := minX; x < maxX; x++ {
+			imgX := x - minX
+			imgY := y - minY
+
 			elevation1 := elevationMap1.GetElevation(x, y)
 			elevation2 := elevationMap2.GetElevation(x, y)
-			imgX := x - minX
-			imgY := x - minY
+			elevationDiff := math.Abs(elevation2 - elevation1)
+
+			var tintColor color.RGBA64
+			if elevation2 < elevation1 {
+				tintColor = color.RGBA64{R: math.MaxUint16, G: 0, B: 0, A: math.MaxUint16}
+			} else {
+				tintColor = color.RGBA64{R: 0, G: math.MaxUint16, B: 0, A: math.MaxUint16}
+			}
 			if elevation1 == lidartools.NodataValue || elevation2 == lidartools.NodataValue {
 				img.SetRGBA64(imgX, imgY, color.RGBA64{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				normalized := (elevation1 - elevationMap1.MinElevation) / elevationRange
 				grayValue := uint16(normalized * math.MaxUint16)
-				img.SetRGBA64(imgX, imgY, color.RGBA64{R: grayValue, G: grayValue, B: grayValue, A: math.MaxUint16})
+				elevationColor := color.RGBA64{R: grayValue, G: grayValue, B: grayValue, A: math.MaxUint16}
+				interpolationFactor := elevationDiff / maxDiff
+				diffColor := color.RGBA64{
+					R: uint16(float64(elevationColor.R)*(1-interpolationFactor) + float64(tintColor.R)*interpolationFactor),
+					G: uint16(float64(elevationColor.G)*(1-interpolationFactor) + float64(tintColor.G)*interpolationFactor),
+					B: uint16(float64(elevationColor.B)*(1-interpolationFactor) + float64(tintColor.B)*interpolationFactor),
+					A: math.MaxUint16,
+				}
+				img.SetRGBA64(imgX, imgY, diffColor)
 			}
 		}
 	}
