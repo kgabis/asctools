@@ -23,6 +23,9 @@ func Cmd(args []string) {
 	var outputFileName string
 	fs.StringVar(&outputFileName, "output", "", "Path to the output .png file")
 
+	var diffPow float64
+	fs.Float64Var(&diffPow, "diff_pow", 1, "Power to which the elevation difference is raised for emphasis")
+
 	fs.Parse(args)
 
 	if inputDir1 == "" || inputDir2 == "" || outputFileName == "" {
@@ -42,7 +45,7 @@ func Cmd(args []string) {
 		return
 	}
 
-	img, err := renderMapDiffToImage(elevationMap1, elevationMap2)
+	img, err := renderMapDiffToImage(elevationMap1, elevationMap2, diffPow)
 	if err != nil {
 		fmt.Println("Error rendering map to bitmap:", err)
 		return
@@ -78,7 +81,7 @@ func max(a, b int) int {
 	return b
 }
 
-func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 *lidartools.ElevationMap) (image.Image, error) {
+func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 *lidartools.ElevationMap, diffPow float64) (image.Image, error) {
 	minX := max(elevationMap1.MinX, elevationMap2.MinX)
 	maxX := min(elevationMap1.MaxX, elevationMap2.MaxX)
 	minY := max(elevationMap1.MinY, elevationMap2.MinY)
@@ -127,9 +130,16 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 				img.SetRGBA64(imgX, imgY, color.RGBA64{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				normalized := (elevation1 - elevationMap1.MinElevation) / elevationRange
-				grayValue := uint16(normalized * math.MaxUint16)
+				emphasized := math.Pow(normalized, diffPow)
+
+				if emphasized > 1 {
+					emphasized = 1
+				}
+
+				grayValue := uint16(emphasized * math.MaxUint16)
 				elevationColor := color.RGBA64{R: grayValue, G: grayValue, B: grayValue, A: math.MaxUint16}
 				interpolationFactor := elevationDiff / maxDiff
+
 				diffColor := color.RGBA64{
 					R: uint16(float64(elevationColor.R)*(1-interpolationFactor) + float64(tintColor.R)*interpolationFactor),
 					G: uint16(float64(elevationColor.G)*(1-interpolationFactor) + float64(tintColor.G)*interpolationFactor),

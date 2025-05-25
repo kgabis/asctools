@@ -125,25 +125,41 @@ func mergeMaps(maps []ElevationMap) *ElevationMap {
 }
 
 func (elevationMap *ElevationMap) fixHoles() {
+	newData := make([][]float64, elevationMap.Height)
+	for i := range newData {
+		newData[i] = make([]float64, elevationMap.Width)
+		copy(newData[i], elevationMap.Data[i])
+	}
+
 	for y := 1; y < elevationMap.Height-1; y++ {
 		for x := 1; x < elevationMap.Width-1; x++ {
 			if elevationMap.Data[y][x] != NodataValue {
 				continue
 			}
 			above := elevationMap.Data[y-1][x]
+			if above != NodataValue {
+				newData[y][x] = above
+				continue
+			}
 			below := elevationMap.Data[y+1][x]
-			if above != NodataValue && below != NodataValue {
-				elevationMap.Data[y][x] = (above + below) / 2
+			if below != NodataValue {
+				newData[y][x] = below
 				continue
 			}
 			left := elevationMap.Data[y][x-1]
+			if left != NodataValue {
+				newData[y][x] = left
+				continue
+			}
 			right := elevationMap.Data[y][x+1]
-			if left != NodataValue && right != NodataValue {
-				elevationMap.Data[y][x] = (left + right) / 2
+			if right != NodataValue {
+				newData[y][x] = right
 				continue
 			}
 		}
 	}
+
+	elevationMap.Data = newData
 }
 
 func readASCFile(filePath string) (ElevationMap, error) {
