@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -24,33 +23,7 @@ type ElevationMap struct {
 	MaxElevation float64
 }
 
-func ASCDirToElevationMap(inputDir string) (*ElevationMap, error) {
-	files, err := os.ReadDir(inputDir)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading input directory: %v", err)
-	}
-
-	var maps []ElevationMap
-
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".asc") {
-			inputFileName := inputDir + "/" + file.Name()
-			slice, err := readASCFile(inputFileName)
-			if err != nil {
-				return nil, fmt.Errorf("Error reading ASC file: %v", err)
-			}
-			maps = append(maps, slice)
-		}
-	}
-
-	merged := mergeMaps(maps)
-
-	merged.fixHoles()
-
-	return merged, nil
-}
-
-func mergeMaps(maps []ElevationMap) *ElevationMap {
+func MergeMaps(maps []*ElevationMap) *ElevationMap {
 	if len(maps) == 0 {
 		return nil
 	}
@@ -121,6 +94,8 @@ func mergeMaps(maps []ElevationMap) *ElevationMap {
 		}
 	}
 
+	merged.fixHoles()
+
 	return merged
 }
 
@@ -162,14 +137,8 @@ func (elevationMap *ElevationMap) fixHoles() {
 	elevationMap.Data = newData
 }
 
-func readASCFile(filePath string) (ElevationMap, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return ElevationMap{}, fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
+	scanner := bufio.NewScanner(reader)
 
 	elevationMap := ElevationMap{
 		MinX:         math.MaxInt,
@@ -187,7 +156,7 @@ func readASCFile(filePath string) (ElevationMap, error) {
 		scanner.Scan()
 		parts := strings.Fields(scanner.Text())
 		if len(parts) != 2 {
-			return elevationMap, fmt.Errorf("invalid header line: %s", scanner.Text())
+			return nil, fmt.Errorf("invalid header line: %s", scanner.Text())
 		}
 		switch strings.ToLower(parts[0]) {
 		case "ncols":
@@ -210,11 +179,11 @@ func readASCFile(filePath string) (ElevationMap, error) {
 	for i := range elevationMap.Data {
 		elevationMap.Data[i] = make([]float64, elevationMap.Width)
 		if !scanner.Scan() {
-			return elevationMap, fmt.Errorf("unexpected end of file at row %d", i)
+			return nil, fmt.Errorf("unexpected end of file at row %d", i)
 		}
 		row := strings.Fields(scanner.Text())
 		if len(row) != elevationMap.Width {
-			return elevationMap, fmt.Errorf("wrong number of columns at row %d", i)
+			return nil, fmt.Errorf("wrong number of columns at row %d", i)
 		}
 		for j, v := range row {
 			val, _ := strconv.ParseFloat(v, 64)
@@ -245,7 +214,7 @@ func readASCFile(filePath string) (ElevationMap, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return ElevationMap{}, fmt.Errorf("error reading file: %v", err)
+		return nil, fmt.Errorf("error reading data: %v", err)
 	}
 
 	elevationMap.MinX = int(centerX - float64(elevationMap.Width)/2)
@@ -253,7 +222,38 @@ func readASCFile(filePath string) (ElevationMap, error) {
 	elevationMap.MinY = int(centerY - float64(elevationMap.Height)/2)
 	elevationMap.MaxY = int(centerY + float64(elevationMap.Height)/2)
 
-	return elevationMap, nil
+	return &elevationMap, nil
+}
+
+func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
+	// Write header
+	header := fmt.Sprintf(
+		"ncols %d\nnrows %d\nxllcenter %f\nyllcenter %f\ncellsize %f\nNODATA_value %f\n",
+		elevationMap.Width,
+		elevationMap.Height,
+		float64(elevationMap.MinX)+elevationMap.CellSize/2,
+		float64(elevationMap.MinY)+elevationMap.CellSize/2,
+		elevationMap.CellSize,
+		NodataValue,
+	)
+	if _, err := writer.WriteString(header); err != nil {
+		return fmt.Errorf("failed to write header: %v", err)
+	}
+
+	// Write data
+	for i := len(elevationMap.Data) - 1; i >= 0; i-- { // Flip vertically
+		row := elevationMap.Data[i]
+		values := make([]string, len(row))
+		for j, v := range row {
+			values[j] = strconv.FormatFloat(v, 'f', -1, 64)
+		}
+		line := strings.Join(values, " ") + "\n"
+		if _, err := writer.WriteString(line); err != nil {
+			return fmt.Errorf("failed to write data row: %v", err)
+		}
+	}
+
+	return writer.Flush()
 }
 
 func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
