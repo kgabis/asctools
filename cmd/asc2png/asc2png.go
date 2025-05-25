@@ -1,6 +1,7 @@
 package asc2png
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"image"
@@ -14,35 +15,13 @@ import (
 func Cmd(args []string) {
 	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
 
-	var inputDir string
-	fs.StringVar(&inputDir, "input_dir", "", "Path to the input dir with .asc files that will be merged")
-
 	var outputFileName string
 	fs.StringVar(&outputFileName, "output", "", "Path to the output .png file")
 
 	fs.Parse(args)
 
-	if inputDir == "" {
-		fmt.Println("Error: input_dir is required")
-		flag.Usage()
-		return
-	}
-
-	if outputFileName == "" {
-		fmt.Println("Error: output is required")
-		flag.Usage()
-		return
-	}
-
-	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
-		fmt.Printf("Error: input_dir '%s' does not exist\n", inputDir)
-		return
-	}
-	elevationMap, err := lidartools.ASCDirToElevationMap(inputDir)
-	if err != nil {
-		fmt.Println("Error reading elevation map:", err)
-		return
-	}
+	reader := bufio.NewReader(os.Stdin)
+	elevationMap, err := lidartools.ParseASCFile(reader)
 
 	img, err := renderMapToImage(elevationMap)
 	if err != nil {
