@@ -1,6 +1,7 @@
 package diffasc2png
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"image"
@@ -14,32 +15,43 @@ import (
 func Cmd(args []string) {
 	fs := flag.NewFlagSet("diffasc2png", flag.ExitOnError)
 
-	var inputDir1 string
-	fs.StringVar(&inputDir1, "input_dir1", "", "Path to the input dir 1 with .asc files that will be merged")
+	var input1 string
+	fs.StringVar(&input1, "input1", "", "Path to the input 1 .asc file")
 
-	var inputDir2 string
-	fs.StringVar(&inputDir2, "input_dir2", "", "Path to the input dir 2 with .asc files that will be merged")
-
-	var outputFileName string
-	fs.StringVar(&outputFileName, "output", "", "Path to the output .png file")
+	var input2 string
+	fs.StringVar(&input2, "input2", "", "Path to the input 2 .asc file")
 
 	var diffPow float64
 	fs.Float64Var(&diffPow, "diff_pow", 1, "Power to which the elevation difference is raised for emphasis")
 
 	fs.Parse(args)
 
-	if inputDir1 == "" || inputDir2 == "" || outputFileName == "" {
-		flag.Usage()
+	if input1 == "" || input2 == "" {
+		fs.Usage()
 		return
 	}
 
-	elevationMap1, err := lidartools.ASCDirToElevationMap(inputDir1)
+	file1, err := os.Open(input1)
+	if err != nil {
+		fmt.Println("Error opening input file 1:", err)
+		return
+	}
+	defer file1.Close()
+
+	file2, err := os.Open(input2)
+	if err != nil {
+		fmt.Println("Error opening input file 2:", err)
+		return
+	}
+	defer file2.Close()
+
+	elevationMap1, err := lidartools.ParseASCFile(bufio.NewReader(file1))
 	if err != nil {
 		fmt.Println("Error reading elevation map:", err)
 		return
 	}
 
-	elevationMap2, err := lidartools.ASCDirToElevationMap(inputDir2)
+	elevationMap2, err := lidartools.ParseASCFile(bufio.NewReader(file2))
 	if err != nil {
 		fmt.Println("Error reading elevation map:", err)
 		return
@@ -51,20 +63,11 @@ func Cmd(args []string) {
 		return
 	}
 
-	file, err := os.Create(outputFileName)
-	if err != nil {
-		fmt.Printf("Error creating output file: %v\n", err)
-		return
-	}
-	defer file.Close()
-
-	err = png.Encode(file, img)
+	err = png.Encode(os.Stdout, img)
 	if err != nil {
 		fmt.Printf("Error encoding PNG: %v\n", err)
 		return
 	}
-
-	fmt.Printf("Result written to %s\n", outputFileName)
 }
 
 func min(a, b int) int {

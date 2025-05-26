@@ -15,9 +15,6 @@ import (
 func Cmd(args []string) {
 	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
 
-	var outputFileName string
-	fs.StringVar(&outputFileName, "output", "", "Path to the output .png file")
-
 	fs.Parse(args)
 
 	reader := bufio.NewReader(os.Stdin)
@@ -29,20 +26,11 @@ func Cmd(args []string) {
 		return
 	}
 
-	file, err := os.Create(outputFileName)
-	if err != nil {
-		fmt.Printf("Error creating output file: %v\n", err)
-		return
-	}
-	defer file.Close()
-
-	err = png.Encode(file, img)
+	err = png.Encode(os.Stdout, img)
 	if err != nil {
 		fmt.Printf("Error encoding PNG: %v\n", err)
 		return
 	}
-
-	fmt.Printf("Result written to %s\n", outputFileName)
 }
 
 func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error) {
