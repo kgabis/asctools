@@ -226,13 +226,12 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 }
 
 func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
-	// Write header
 	header := fmt.Sprintf(
 		"ncols %d\nnrows %d\nxllcenter %f\nyllcenter %f\ncellsize %f\nNODATA_value %f\n",
 		elevationMap.Width,
 		elevationMap.Height,
-		float64(elevationMap.MinX)+elevationMap.CellSize/2,
-		float64(elevationMap.MinY)+elevationMap.CellSize/2,
+		float64(elevationMap.MinX)+float64(elevationMap.Width)/2,
+		float64(elevationMap.MinY)+float64(elevationMap.Height)/2,
 		elevationMap.CellSize,
 		NodataValue,
 	)
@@ -240,8 +239,7 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 		return fmt.Errorf("failed to write header: %v", err)
 	}
 
-	// Write data
-	for i := len(elevationMap.Data) - 1; i >= 0; i-- { // Flip vertically
+	for i := len(elevationMap.Data) - 1; i >= 0; i-- {
 		row := elevationMap.Data[i]
 		values := make([]string, len(row))
 		for j, v := range row {
