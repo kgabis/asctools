@@ -266,3 +266,179 @@ func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
 
 	return NodataValue
 }
+
+// Split splits the elevation map into a grid of smaller maps
+// nrows and ncols specify the number of rows and columns in the output grid
+// If uniformSize is true, all tiles will have the same dimensions (smaller of width/ncols and height/nrows)
+func (elevationMap *ElevationMap) Split(nrows, ncols int, uniformSize bool) [][]*ElevationMap {
+	if nrows <= 0 || ncols <= 0 {
+		return nil
+	}
+
+	var tileWidth, tileHeight int
+	var usableWidth, usableHeight int
+
+	if uniformSize {
+		// Calculate uniform tile dimensions using the smaller of the two ratios
+		widthPerCol := elevationMap.Width / ncols
+		heightPerRow := elevationMap.Height / nrows
+
+		// Use the smaller dimension to ensure all tiles fit
+		if widthPerCol < heightPerRow {
+			tileWidth = widthPerCol
+			tileHeight = widthPerCol
+		} else {
+			tileWidth = heightPerRow
+			tileHeight = heightPerRow
+		}
+
+		// Calculate usable dimensions (may be smaller than original map)
+		usableWidth = ncols * tileWidth
+		usableHeight = nrows * tileHeight
+	} else {
+		// Calculate tile dimensions normally
+		tileWidth = elevationMap.Width / ncols
+		tileHeight = elevationMap.Height / nrows
+		usableWidth = elevationMap.Width
+		usableHeight = elevationMap.Height
+	}
+
+	// Create result grid
+	result := make([][]*ElevationMap, nrows)
+	for i := range result {
+		result[i] = make([]*ElevationMap, ncols)
+	}
+
+	// Split the map into tiles
+	for row := 0; row < nrows; row++ {
+		for col := 0; col < ncols; col++ {
+			// Calculate tile boundaries
+			startX := col * tileWidth
+			startY := row * tileHeight
+			endX := startX + tileWidth
+			endY := startY + tileHeight
+
+			// Ensure we don't go beyond the usable map boundaries
+			if endX > usableWidth {
+				endX = usableWidth
+			}
+			if endY > usableHeight {
+				endY = usableHeight
+			}
+
+			actualWidth := endX - startX
+			actualHeight := endY - startY
+
+			// Skip empty tiles
+			if actualWidth <= 0 || actualHeight <= 0 {
+				continue
+			}
+
+			// Create the tile
+			result[row][col] = elevationMap.Crop(startX, startY, actualWidth, actualHeight)
+		}
+	}
+
+	return result
+}
+
+// Crop creates a new ElevationMap from a rectangular region of this map
+// startX, startY specify the top-left corner in absolute cell coordinates
+// width, height specify the dimensions of the cropped region
+func (elevationMap *ElevationMap) Crop(startX, startY, width, height int) *ElevationMap {
+	// Create new tile data
+	tileData := make([][]float64, height)
+	for i := range tileData {
+		tileData[i] = make([]float64, width)
+	}
+
+	// Copy data from original map to tile
+	minElevation := math.MaxFloat64
+	maxElevation := -math.MaxFloat64
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			sourceY := startY + y
+			sourceX := startX + x
+
+			if sourceY < len(elevationMap.Data) && sourceX < len(elevationMap.Data[sourceY]) {
+				value := elevationMap.Data[sourceY][sourceX]
+				tileData[y][x] = value
+
+				if value != NodataValue {
+					if value < minElevation {
+						minElevation = value
+					}
+					if value > maxElevation {
+						maxElevation = value
+					}
+				}
+			} else {
+				tileData[y][x] = NodataValue
+			}
+		}
+	}
+
+	// Calculate tile center coordinates
+	tileCenterX := float64(elevationMap.MinX) + float64(startX) + float64(width)/2
+	tileCenterY := float64(elevationMap.MinY) + float64(startY) + float64(height)/2
+
+	// Create the tile elevation map
+	tile := &ElevationMap{
+		Width:        width,
+		Height:       height,
+		CellSize:     elevationMap.CellSize,
+		MinX:         int(tileCenterX - float64(width)/2),
+		MaxX:         int(tileCenterX + float64(width)/2),
+		MinY:         int(tileCenterY - float64(height)/2),
+		MaxY:         int(tileCenterY + float64(height)/2),
+		Data:         tileData,
+		MinElevation: minElevation,
+		MaxElevation: maxElevation,
+	}
+
+	return tile
+}
+
+// CropRelative creates a new ElevationMap from a rectangular region using relative coordinates (0-1)
+// startX, startY, endX, endY are all in the range [0, 1] where 0,0 is top-left and 1,1 is bottom-right
+func (elevationMap *ElevationMap) CropRelative(startX, startY, endX, endY float64) *ElevationMap {
+	// Validate input ranges
+	if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
+		endX < 0 || endX > 1 || endY < 0 || endY > 1 ||
+		startX >= endX || startY >= endY {
+		return nil
+	}
+
+	// Convert relative coordinates to absolute cell coordinates
+	absStartX := int(startX * float64(elevationMap.Width))
+	absStartY := int(startY * float64(elevationMap.Height))
+	absEndX := int(endX * float64(elevationMap.Width))
+	absEndY := int(endY * float64(elevationMap.Height))
+
+	// Calculate dimensions
+	width := absEndX - absStartX
+	height := absEndY - absStartY
+
+	// Ensure we don't go beyond map boundaries
+	if absStartX < 0 {
+		absStartX = 0
+	}
+	if absStartY < 0 {
+		absStartY = 0
+	}
+	if absEndX > elevationMap.Width {
+		absEndX = elevationMap.Width
+		width = absEndX - absStartX
+	}
+	if absEndY > elevationMap.Height {
+		absEndY = elevationMap.Height
+		height = absEndY - absStartY
+	}
+
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+
+	return elevationMap.Crop(absStartX, absStartY, width, height)
+}
