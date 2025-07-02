@@ -13,10 +13,7 @@ func Cmd(args []string) {
 	fs := flag.NewFlagSet("crop", flag.ExitOnError)
 
 	var inputFile string
-	fs.StringVar(&inputFile, "input", "", "Path to the input ASC file to crop")
-
-	var outputFile string
-	fs.StringVar(&outputFile, "output", "", "Path to the output ASC file (default: stdout)")
+	fs.StringVar(&inputFile, "input", "", "Path to the input ASC file to crop (default: stdin)")
 
 	var startX float64
 	fs.Float64Var(&startX, "start_x", 0.0, "Start X coordinate (0-1, where 0 is left edge)")
@@ -32,12 +29,6 @@ func Cmd(args []string) {
 
 	fs.Parse(args)
 
-	if inputFile == "" {
-		fmt.Fprintln(os.Stderr, "Error: input file is required")
-		fs.Usage()
-		os.Exit(1)
-	}
-
 	// Validate coordinate ranges
 	if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
 		endX < 0 || endX > 1 || endY < 0 || endY > 1 {
@@ -50,22 +41,30 @@ func Cmd(args []string) {
 		os.Exit(1)
 	}
 
-	// Open and parse the input ASC file
-	file, err := os.Open(inputFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening input file: %v\n", err)
-		os.Exit(1)
+	// Open and parse the input ASC file (from file or stdin)
+	var reader *bufio.Reader
+	if inputFile == "" {
+		// Read from stdin
+		reader = bufio.NewReader(os.Stdin)
+	} else {
+		// Read from file
+		file, err := os.Open(inputFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening input file: %v\n", err)
+			os.Exit(1)
+		}
+		defer file.Close()
+		reader = bufio.NewReader(file)
 	}
-	defer file.Close()
 
-	elevationMap, err := lidartools.ParseASCFile(bufio.NewReader(file))
+	elevationMap, err := lidartools.ParseASCFile(reader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Original map: %dx%d\n", elevationMap.Width, elevationMap.Height)
-	fmt.Printf("Cropping from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
+	fmt.Fprintf(os.Stderr, "Original map: %dx%d\n", elevationMap.Width, elevationMap.Height)
+	fmt.Fprintf(os.Stderr, "Cropping from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
 
 	// Crop the map using relative coordinates
 	croppedMap := elevationMap.CropRelative(startX, startY, endX, endY)
@@ -74,33 +73,15 @@ func Cmd(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Cropped map: %dx%d\n", croppedMap.Width, croppedMap.Height)
+	fmt.Fprintf(os.Stderr, "Cropped map: %dx%d\n", croppedMap.Width, croppedMap.Height)
 
-	// Determine output destination
-	var writer *bufio.Writer
-	if outputFile == "" {
-		// Write to stdout
-		writer = bufio.NewWriter(os.Stdout)
-	} else {
-		// Write to file
-		outFile, err := os.Create(outputFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
-			os.Exit(1)
-		}
-		defer outFile.Close()
-		writer = bufio.NewWriter(outFile)
-	}
+	// Write the cropped map to stdout
+	writer := bufio.NewWriter(os.Stdout)
 	defer writer.Flush()
 
-	// Write the cropped map
 	err = croppedMap.WriteASC(writer)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing cropped map: %v\n", err)
 		os.Exit(1)
-	}
-
-	if outputFile != "" {
-		fmt.Printf("Successfully cropped and saved to: %s\n", outputFile)
 	}
 }
