@@ -15,39 +15,28 @@ func Cmd(args []string) {
 	var inputFile string
 	fs.StringVar(&inputFile, "input", "", "Path to the input ASC file to crop (default: stdin)")
 
+	var relative bool
+	fs.BoolVar(&relative, "relative", false, "Use relative coordinates (0-1). If false, use absolute indices (0..width, 0..height)")
+
 	var startX float64
-	fs.Float64Var(&startX, "start_x", 0.0, "Start X coordinate (0-1, where 0 is left edge)")
+	fs.Float64Var(&startX, "start_x", 0.0, "Start X coordinate (relative: 0-1; absolute: 0..width)")
 
 	var startY float64
-	fs.Float64Var(&startY, "start_y", 0.0, "Start Y coordinate (0-1, where 0 is top edge)")
+	fs.Float64Var(&startY, "start_y", 0.0, "Start Y coordinate (relative: 0-1; absolute: 0..height)")
 
 	var endX float64
-	fs.Float64Var(&endX, "end_x", 1.0, "End X coordinate (0-1, where 1 is right edge)")
+	fs.Float64Var(&endX, "end_x", 1.0, "End X coordinate (relative: 0-1; absolute: 0..width)")
 
 	var endY float64
-	fs.Float64Var(&endY, "end_y", 1.0, "End Y coordinate (0-1, where 1 is bottom edge)")
+	fs.Float64Var(&endY, "end_y", 1.0, "End Y coordinate (relative: 0-1; absolute: 0..height)")
 
 	fs.Parse(args)
-
-	// Validate coordinate ranges
-	if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
-		endX < 0 || endX > 1 || endY < 0 || endY > 1 {
-		fmt.Fprintln(os.Stderr, "Error: all coordinates must be in range [0, 1]")
-		os.Exit(1)
-	}
-
-	if startX >= endX || startY >= endY {
-		fmt.Fprintln(os.Stderr, "Error: start coordinates must be less than end coordinates")
-		os.Exit(1)
-	}
 
 	// Open and parse the input ASC file (from file or stdin)
 	var reader *bufio.Reader
 	if inputFile == "" {
-		// Read from stdin
 		reader = bufio.NewReader(os.Stdin)
 	} else {
-		// Read from file
 		file, err := os.Open(inputFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening input file: %v\n", err)
@@ -64,12 +53,49 @@ func Cmd(args []string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "Original map: %dx%d\n", elevationMap.Width, elevationMap.Height)
-	fmt.Fprintf(os.Stderr, "Cropping from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
 
-	// Crop the map using relative coordinates
-	croppedMap := elevationMap.CropRelative(startX, startY, endX, endY)
-	if croppedMap == nil {
-		fmt.Fprintln(os.Stderr, "Error: failed to crop map (invalid coordinates or resulting empty region)")
+	// Prepare coordinates (validate and convert to relative if needed)
+	var relStartX, relStartY, relEndX, relEndY float64
+	if relative {
+		// Validate relative coordinate ranges
+		if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
+			endX < 0 || endX > 1 || endY < 0 || endY > 1 {
+			fmt.Fprintln(os.Stderr, "Error: when -relative is true, all coordinates must be in range [0, 1]")
+			os.Exit(1)
+		}
+		relStartX, relStartY = startX, startY
+		relEndX, relEndY = endX, endY
+
+		if relStartX >= relEndX || relStartY >= relEndY {
+			fmt.Fprintln(os.Stderr, "Error: start coordinates must be less than end coordinates")
+			os.Exit(1)
+		}
+	} else {
+		// Validate absolute indices against map size
+		minX := float64(elevationMap.MinX)
+		minY := float64(elevationMap.MinY)
+		w := float64(elevationMap.Width)
+		h := float64(elevationMap.Height)
+
+		if startX < minX || startX > (minX+w) || endX < 0 || endX > (minX+w) ||
+			startY < minY || startY > (minY+h) || endY < 0 || endY > (minY+h) {
+			fmt.Fprintf(os.Stderr, "Error: when -relative is false, start_x must be in [%.1f, %.1f], end_x in [0, %.1f], start_y in [%.1f, %.1f], end_y in [0, %.1f]\n",
+				minX, minX+w, minX+w, minY, minY+h, minY+h)
+			os.Exit(1)
+		}
+	}
+
+	var croppedMap *lidartools.ElevationMap
+	if relative {
+		fmt.Fprintf(os.Stderr, "Cropping (relative) from (%.3f, %.3f) to (%.3f, %.3f)\n", relStartX, relStartY, relEndX, relEndY)
+		croppedMap, err = elevationMap.CropRelative(relStartX, relStartY, relEndX, relEndY)
+	} else {
+		fmt.Fprintf(os.Stderr, "Cropping (absolute indices) from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
+		croppedMap, err = elevationMap.Crop(int(startX), int(startY), int(endX), int(endY))
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error cropping map: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -68,9 +68,9 @@ func Cmd(args []string) {
 	}
 
 	// Split the map using the ElevationMap Split method
-	tiles := elevationMap.Split(nrows, ncols, uniformSize)
-	if tiles == nil {
-		fmt.Fprintf(os.Stderr, "Error: invalid grid dimensions\n")
+	tiles, err := elevationMap.Split(nrows, ncols, uniformSize)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error splitting map: %v\n", err)
 		os.Exit(1)
 	}
 
