@@ -82,23 +82,11 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 		if m.NumRows != len(m.Data) || m.NumCols != len(m.Data[0]) {
 			return nil, fmt.Errorf("map dimensions do not match data size")
 		}
-
-		for row := 0; row < m.NumRows; row++ {
-			for col := 0; col < m.NumCols; col++ {
-				globalX := int(m.MinX) + col
-				globalY := int(m.MinY) + row
-				mergedX := globalX - int(minX)
-				mergedY := globalY - int(minY)
-
-				value := m.Data[row][col]
+		for y := m.MinY; y < m.MaxY; y += m.CellSize {
+			for x := m.MinX; x < m.MaxX; x += m.CellSize {
+				value := m.GetElevation(x, y)
 				if value != NodataValue {
-					merged.Data[mergedY][mergedX] = value
-					if value < merged.MinElevation {
-						merged.MinElevation = value
-					}
-					if value > merged.MaxElevation {
-						merged.MaxElevation = value
-					}
+					merged.SetElevation(x, y, value)
 				}
 			}
 		}
