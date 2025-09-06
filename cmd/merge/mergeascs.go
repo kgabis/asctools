@@ -27,7 +27,8 @@ func Cmd(args []string) {
 
 	files, err := os.ReadDir(inputDir)
 	if err != nil {
-		return
+		fmt.Fprintln(os.Stderr, "Error reading input directory:", err)
+		os.Exit(1)
 	}
 
 	for _, file := range files {
@@ -50,17 +51,12 @@ func Cmd(args []string) {
 		}
 	}
 
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading input directory:", err)
-		os.Exit(1)
-	}
-
 	if len(maps) == 0 {
 		fmt.Fprintln(os.Stderr, "No ASC files found in the input directory")
 		os.Exit(1)
 	}
 
-	mergedMap := lidartools.MergeMaps(maps)
+	mergedMap, err := lidartools.MergeMaps(maps)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error merging elevation maps:", err)
 		os.Exit(1)

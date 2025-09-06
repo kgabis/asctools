@@ -21,6 +21,10 @@ func Cmd(args []string) {
 
 	reader := bufio.NewReader(os.Stdin)
 	elevationMap, err := lidartools.ParseASCFile(reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
+		return
+	}
 
 	renderFunc := renderMapToImage
 	if absoluteElevation {
@@ -41,33 +45,32 @@ func Cmd(args []string) {
 }
 
 func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error) {
-	width := elevationMap.MaxX - elevationMap.MinX
-	height := elevationMap.MaxY - elevationMap.MinY
-
-	img := image.NewGray16(image.Rect(0, 0, width, height))
+	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
+	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
+	img := image.NewGray16(image.Rect(0, 0, imgWidth, imgHeight))
 
 	elevationRange := elevationMap.MaxElevation - elevationMap.MinElevation
 
-	for y := elevationMap.MinY; y < elevationMap.MaxY; y++ {
-		for x := elevationMap.MinX; x < elevationMap.MaxX; x++ {
-			elevation := elevationMap.GetElevation(x, y)
+	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize {
+		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize {
+			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
 			if elevation == lidartools.NodataValue {
-				img.SetGray16(x-elevationMap.MinX, y-elevationMap.MinY, color.Gray16{Y: 0})
+				img.SetGray16(int(x/elevationMap.CellSize), int(y/elevationMap.CellSize), color.Gray16{Y: 0})
 			} else {
 				normalized := (elevation - elevationMap.MinElevation) / elevationRange
 				grayValue := uint16(normalized * math.MaxUint16)
-				img.SetGray16(x-elevationMap.MinX, y-elevationMap.MinY, color.Gray16{Y: grayValue})
+				img.SetGray16(int(x/elevationMap.CellSize), int(y/elevationMap.CellSize), color.Gray16{Y: grayValue})
 			}
 		}
 	}
 
 	// Flip the image vertically
-	for y := 0; y < height/2; y++ {
-		for x := 0; x < width; x++ {
+	for y := 0; y < imgHeight/2; y++ {
+		for x := 0; x < imgWidth; x++ {
 			top := img.Gray16At(x, y)
-			bottom := img.Gray16At(x, height-y-1)
+			bottom := img.Gray16At(x, imgHeight-y-1)
 			img.SetGray16(x, y, bottom)
-			img.SetGray16(x, height-y-1, top)
+			img.SetGray16(x, imgHeight-y-1, top)
 		}
 	}
 
@@ -75,25 +78,27 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 }
 
 func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Image, error) {
-	width := elevationMap.MaxX - elevationMap.MinX
-	height := elevationMap.MaxY - elevationMap.MinY
+	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
+	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
+	img := image.NewNRGBA(image.Rect(0, 0, imgWidth, imgHeight))
 
-	img := image.NewNRGBA(image.Rect(0, 0, width, height))
-
-	for y := elevationMap.MinY; y < elevationMap.MaxY; y++ {
-		for x := elevationMap.MinX; x < elevationMap.MaxX; x++ {
-			elevation := elevationMap.GetElevation(x, y)
+	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize {
+		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize {
+			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
+			imgX := int(x / elevationMap.CellSize)
+			imgY := int(y / elevationMap.CellSize)
+			// Encode elevation as:
 			if elevation == lidartools.NodataValue {
-				img.SetNRGBA(x-elevationMap.MinX, y-elevationMap.MinY, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
+				img.SetNRGBA(imgX, imgY, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				intPart := int(math.Floor(elevation))
 				fracPart := elevation - float64(intPart)
-				r := uint8((intPart >> 8) & 0xFF) // high byte of meters
-				g := uint8(intPart & 0xFF)        // low byte of meters
-				b := uint8(fracPart * 255)        // fractional part in blue
+				r := uint8((intPart >> 8) & 0xFF)
+				g := uint8(intPart & 0xFF)
+				b := uint8(fracPart * 255)
 				img.SetNRGBA(
-					x-elevationMap.MinX,
-					y-elevationMap.MinY,
+					imgX,
+					imgY,
 					color.NRGBA{R: r, G: g, B: b, A: 255},
 				)
 			}
@@ -101,12 +106,12 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 	}
 
 	// Flip the image vertically
-	for y := 0; y < height/2; y++ {
-		for x := 0; x < width; x++ {
+	for y := 0; y < imgHeight/2; y++ {
+		for x := 0; x < imgWidth; x++ {
 			top := img.NRGBAAt(x, y)
-			bottom := img.NRGBAAt(x, height-y-1)
+			bottom := img.NRGBAAt(x, imgHeight-y-1)
 			img.SetNRGBA(x, y, bottom)
-			img.SetNRGBA(x, height-y-1, top)
+			img.SetNRGBA(x, imgHeight-y-1, top)
 		}
 	}
 

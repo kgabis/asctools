@@ -52,12 +52,10 @@ func Cmd(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Original map: %dx%d\n", elevationMap.Width, elevationMap.Height)
+	fmt.Fprintf(os.Stderr, "Original map: %fx%f\n", elevationMap.GetWidth(), elevationMap.GetHeight())
 
-	// Prepare coordinates (validate and convert to relative if needed)
 	var relStartX, relStartY, relEndX, relEndY float64
 	if relative {
-		// Validate relative coordinate ranges
 		if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
 			endX < 0 || endX > 1 || endY < 0 || endY > 1 {
 			fmt.Fprintln(os.Stderr, "Error: when -relative is true, all coordinates must be in range [0, 1]")
@@ -72,10 +70,10 @@ func Cmd(args []string) {
 		}
 	} else {
 		// Validate absolute indices against map size
-		minX := float64(elevationMap.MinX)
-		minY := float64(elevationMap.MinY)
-		w := float64(elevationMap.Width)
-		h := float64(elevationMap.Height)
+		minX := elevationMap.MinX
+		minY := elevationMap.MinY
+		w := elevationMap.GetWidth()
+		h := elevationMap.GetHeight()
 
 		if startX < minX || startX > (minX+w) || endX < 0 || endX > (minX+w) ||
 			startY < minY || startY > (minY+h) || endY < 0 || endY > (minY+h) {
@@ -91,7 +89,7 @@ func Cmd(args []string) {
 		croppedMap, err = elevationMap.CropRelative(relStartX, relStartY, relEndX, relEndY)
 	} else {
 		fmt.Fprintf(os.Stderr, "Cropping (absolute indices) from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
-		croppedMap, err = elevationMap.Crop(int(startX), int(startY), int(endX), int(endY))
+		croppedMap, err = elevationMap.Crop(startX, startY, endX, endY)
 	}
 
 	if err != nil {
@@ -99,9 +97,8 @@ func Cmd(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Cropped map: %dx%d\n", croppedMap.Width, croppedMap.Height)
+	fmt.Fprintf(os.Stderr, "Cropped map: %fx%f\n", croppedMap.GetWidth(), croppedMap.GetHeight())
 
-	// Write the cropped map to stdout
 	writer := bufio.NewWriter(os.Stdout)
 	defer writer.Flush()
 

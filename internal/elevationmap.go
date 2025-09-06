@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -12,25 +11,32 @@ import (
 const NodataValue = -9999.0
 
 type ElevationMap struct {
-	Width        int
-	Height       int
+	NumRows      int
+	NumCols      int
 	CellSize     float64
-	MinX         int
-	MaxX         int
-	MinY         int
-	MaxY         int
+	MinX         float64
+	MaxX         float64
+	MinY         float64
+	MaxY         float64
 	Data         [][]float64
 	MinElevation float64
 	MaxElevation float64
 }
 
-func MergeMaps(maps []*ElevationMap) *ElevationMap {
+func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 	if len(maps) == 0 {
-		return nil
+		return nil, fmt.Errorf("no maps to merge")
 	}
 
-	minX, minY := math.MaxInt, math.MaxInt
-	maxX, maxY := -math.MaxInt, -math.MaxInt
+	cellSize := maps[0].CellSize
+	for _, m := range maps {
+		if m.CellSize != cellSize {
+			return nil, fmt.Errorf("incompatible cell sizes")
+		}
+	}
+
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
 	for _, m := range maps {
 		if m.MinX < minX {
 			minX = m.MinX
@@ -49,35 +55,42 @@ func MergeMaps(maps []*ElevationMap) *ElevationMap {
 	width := maxX - minX
 	height := maxY - minY
 
+	numRows := int(height / cellSize)
+	numCols := int(width / cellSize)
+
 	merged := &ElevationMap{
 		MinX:         minX,
 		MinY:         minY,
 		MaxX:         maxX,
 		MaxY:         maxY,
-		Width:        width,
-		Height:       height,
-		CellSize:     maps[0].CellSize,
+		NumRows:      numRows,
+		NumCols:      numCols,
+		CellSize:     cellSize,
 		MinElevation: math.MaxFloat64,
 		MaxElevation: -math.MaxFloat64,
-		Data:         make([][]float64, height),
+		Data:         make([][]float64, numRows),
 	}
 
 	for i := range merged.Data {
-		merged.Data[i] = make([]float64, width)
+		merged.Data[i] = make([]float64, numCols)
 		for j := range merged.Data[i] {
 			merged.Data[i][j] = NodataValue
 		}
 	}
 
 	for _, m := range maps {
-		for y := 0; y < m.Height; y++ {
-			for x := 0; x < m.Width; x++ {
-				globalX := m.MinX + x
-				globalY := m.MinY + y
-				mergedX := globalX - minX
-				mergedY := globalY - minY
+		if m.NumRows != len(m.Data) || m.NumCols != len(m.Data[0]) {
+			return nil, fmt.Errorf("map dimensions do not match data size")
+		}
 
-				value := m.Data[y][x]
+		for row := 0; row < m.NumRows; row++ {
+			for col := 0; col < m.NumCols; col++ {
+				globalX := int(m.MinX) + col
+				globalY := int(m.MinY) + row
+				mergedX := globalX - int(minX)
+				mergedY := globalY - int(minY)
+
+				value := m.Data[row][col]
 				if value != NodataValue {
 					merged.Data[mergedY][mergedX] = value
 					if value < merged.MinElevation {
@@ -93,18 +106,18 @@ func MergeMaps(maps []*ElevationMap) *ElevationMap {
 
 	merged.fixHoles()
 
-	return merged
+	return merged, nil
 }
 
 func (elevationMap *ElevationMap) fixHoles() {
-	newData := make([][]float64, elevationMap.Height)
+	newData := make([][]float64, elevationMap.NumRows)
 	for i := range newData {
-		newData[i] = make([]float64, elevationMap.Width)
+		newData[i] = make([]float64, elevationMap.NumCols)
 		copy(newData[i], elevationMap.Data[i])
 	}
 
-	for y := 1; y < elevationMap.Height-1; y++ {
-		for x := 1; x < elevationMap.Width-1; x++ {
+	for y := 1; y < elevationMap.NumRows-1; y++ {
+		for x := 1; x < elevationMap.NumCols-1; x++ {
 			if elevationMap.Data[y][x] != NodataValue {
 				continue
 			}
@@ -136,6 +149,7 @@ func (elevationMap *ElevationMap) fixHoles() {
 
 func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64*1024), 256*1024*1024)
 
 	elevationMap := ElevationMap{
 		MinX:         math.MaxInt,
@@ -157,9 +171,9 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 		}
 		switch strings.ToLower(parts[0]) {
 		case "ncols":
-			elevationMap.Width, _ = strconv.Atoi(parts[1])
+			elevationMap.NumCols, _ = strconv.Atoi(parts[1])
 		case "nrows":
-			elevationMap.Height, _ = strconv.Atoi(parts[1])
+			elevationMap.NumRows, _ = strconv.Atoi(parts[1])
 		case "xllcenter":
 			centerX, _ = strconv.ParseFloat(parts[1], 64)
 		case "yllcenter":
@@ -171,14 +185,14 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 		}
 	}
 
-	elevationMap.Data = make([][]float64, elevationMap.Height)
+	elevationMap.Data = make([][]float64, elevationMap.NumRows)
 	for i := range elevationMap.Data {
-		elevationMap.Data[i] = make([]float64, elevationMap.Width)
+		elevationMap.Data[i] = make([]float64, elevationMap.NumCols)
 		if !scanner.Scan() {
 			return nil, fmt.Errorf("unexpected end of file at row %d", i)
 		}
 		row := strings.Fields(scanner.Text())
-		if len(row) != elevationMap.Width {
+		if len(row) != elevationMap.NumCols {
 			return nil, fmt.Errorf("wrong number of columns at row %d", i)
 		}
 		for j, v := range row {
@@ -211,10 +225,13 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 		return nil, fmt.Errorf("error reading data: %v", err)
 	}
 
-	elevationMap.MinX = int(centerX - float64(elevationMap.Width)/2)
-	elevationMap.MaxX = int(centerX + float64(elevationMap.Width)/2)
-	elevationMap.MinY = int(centerY - float64(elevationMap.Height)/2)
-	elevationMap.MaxY = int(centerY + float64(elevationMap.Height)/2)
+	width := float64(elevationMap.NumCols) * elevationMap.CellSize
+	height := float64(elevationMap.NumRows) * elevationMap.CellSize
+
+	elevationMap.MinX = centerX - width/2
+	elevationMap.MaxX = centerX + width/2
+	elevationMap.MinY = centerY - height/2
+	elevationMap.MaxY = centerY + height/2
 
 	return &elevationMap, nil
 }
@@ -222,10 +239,10 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 	header := fmt.Sprintf(
 		"ncols %d\nnrows %d\nxllcenter %f\nyllcenter %f\ncellsize %f\nNODATA_value %f\n",
-		elevationMap.Width,
-		elevationMap.Height,
-		float64(elevationMap.MinX)+float64(elevationMap.Width)/2,
-		float64(elevationMap.MinY)+float64(elevationMap.Height)/2,
+		elevationMap.NumCols,
+		elevationMap.NumRows,
+		(elevationMap.MaxX-elevationMap.MinX)/2,
+		(elevationMap.MaxY-elevationMap.MinY)/2,
 		elevationMap.CellSize,
 		NodataValue,
 	)
@@ -248,12 +265,14 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 	return writer.Flush()
 }
 
-func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
+func (elevationMap *ElevationMap) GetElevation(x float64, y float64) float64 {
 	if x >= elevationMap.MinX && x < elevationMap.MaxX && y >= elevationMap.MinY && y < elevationMap.MaxY {
 		mapY := y - elevationMap.MinY
 		mapX := x - elevationMap.MinX
-		if mapY >= 0 && mapY < len(elevationMap.Data) && mapX >= 0 && mapX < len(elevationMap.Data[mapY]) {
-			value := elevationMap.Data[mapY][mapX]
+		row := int(mapY / elevationMap.CellSize)
+		col := int(mapX / elevationMap.CellSize)
+		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
+			value := elevationMap.Data[row][col]
 			return value
 		}
 	}
@@ -261,44 +280,62 @@ func (elevationMap *ElevationMap) GetElevation(x int, y int) float64 {
 	return NodataValue
 }
 
-func (elevationMap *ElevationMap) Split(nrows, ncols int, uniformSize bool) ([][]*ElevationMap, error) {
-	if nrows <= 0 || ncols <= 0 {
+func (elevationMap *ElevationMap) SetElevation(x float64, y float64, value float64) {
+	if x >= elevationMap.MinX && x < elevationMap.MaxX && y >= elevationMap.MinY && y < elevationMap.MaxY {
+		mapY := y - elevationMap.MinY
+		mapX := x - elevationMap.MinX
+		row := int(mapY / elevationMap.CellSize)
+		col := int(mapX / elevationMap.CellSize)
+		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
+			elevationMap.Data[row][col] = value
+			if value != NodataValue {
+				if value < elevationMap.MinElevation {
+					elevationMap.MinElevation = value
+				}
+				if value > elevationMap.MaxElevation {
+					elevationMap.MaxElevation = value
+				}
+			}
+		}
+	}
+}
+
+func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool) ([][]*ElevationMap, error) {
+	if verTiles <= 0 || horTiles <= 0 {
 		return nil, fmt.Errorf("invalid dimensions")
 	}
 
-	var tileWidth, tileHeight int
-	var usableWidth, usableHeight int
+	var tileWidth, tileHeight float64
+	var usableWidth, usableHeight float64
 
 	if uniformSize {
-		widthPerCol := elevationMap.Width / ncols
-		heightPerRow := elevationMap.Height / nrows
+		tileWidth = elevationMap.GetWidth() / float64(horTiles)
+		tileHeight = elevationMap.GetHeight() / float64(verTiles)
 
-		if widthPerCol < heightPerRow {
-			tileWidth = widthPerCol
-			tileHeight = widthPerCol
+		if tileWidth < tileHeight {
+			tileWidth = tileHeight
 		} else {
-			tileWidth = heightPerRow
-			tileHeight = heightPerRow
+			tileHeight = tileWidth
 		}
 
-		usableWidth = ncols * tileWidth
-		usableHeight = nrows * tileHeight
+		usableWidth = float64(horTiles) * tileWidth
+		usableHeight = float64(verTiles) * tileHeight
 	} else {
-		tileWidth = elevationMap.Width / ncols
-		tileHeight = elevationMap.Height / nrows
-		usableWidth = elevationMap.Width
-		usableHeight = elevationMap.Height
+		tileWidth = elevationMap.GetWidth() / float64(horTiles)
+		tileHeight = elevationMap.GetHeight() / float64(verTiles)
+		usableWidth = elevationMap.GetWidth()
+		usableHeight = elevationMap.GetHeight()
 	}
 
-	result := make([][]*ElevationMap, nrows)
+	result := make([][]*ElevationMap, verTiles)
 	for i := range result {
-		result[i] = make([]*ElevationMap, ncols)
+		result[i] = make([]*ElevationMap, horTiles)
 	}
 
-	for row := 0; row < nrows; row++ {
-		for col := 0; col < ncols; col++ {
-			startX := col * tileWidth
-			startY := row * tileHeight
+	for row := 0; row < verTiles; row++ {
+		for col := 0; col < horTiles; col++ {
+			startX := float64(col) * tileWidth
+			startY := float64(row) * tileHeight
 			endX := startX + tileWidth
 			endY := startY + tileHeight
 
@@ -309,14 +346,12 @@ func (elevationMap *ElevationMap) Split(nrows, ncols int, uniformSize bool) ([][
 				endY = usableHeight
 			}
 
-			actualWidth := endX - startX
-			actualHeight := endY - startY
+			cropStartX := elevationMap.MinX + startX
+			cropStartY := elevationMap.MinY + startY
+			cropEndX := elevationMap.MinX + endX
+			cropEndY := elevationMap.MinY + endY
 
-			if actualWidth <= 0 || actualHeight <= 0 {
-				continue
-			}
-
-			tile, err := elevationMap.Crop(startX+elevationMap.MinX, startY+elevationMap.MinY, actualWidth, actualHeight)
+			tile, err := elevationMap.Crop(cropStartX, cropStartY, cropEndX, cropEndY)
 			if err != nil {
 				return nil, err
 			}
@@ -327,9 +362,20 @@ func (elevationMap *ElevationMap) Split(nrows, ncols int, uniformSize bool) ([][
 	return result, nil
 }
 
-func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY int) (*ElevationMap, error) {
+func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*ElevationMap, error) {
+	if startX > endX {
+		temp := startX
+		startX = endX
+		endX = temp
+	}
 
-	if startX < elevationMap.MinX || endX >= elevationMap.MinX+elevationMap.Width || startY < elevationMap.MinY || endY >= elevationMap.MinY+elevationMap.Height {
+	if startY > endY {
+		temp := startY
+		startY = endY
+		endY = temp
+	}
+
+	if startX < elevationMap.MinX || endX >= elevationMap.MaxX || startY < elevationMap.MinY || endY >= elevationMap.MaxY {
 		return nil, fmt.Errorf("position out of range")
 	}
 
@@ -340,25 +386,28 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY int) (*Elevati
 		return nil, fmt.Errorf("invalid crop dimensions")
 	}
 
-	tileData := make([][]float64, height)
+	numRows := int(height / elevationMap.CellSize)
+	numCols := int(width / elevationMap.CellSize)
+
+	tileData := make([][]float64, numRows)
 	for i := range tileData {
-		tileData[i] = make([]float64, width)
+		tileData[i] = make([]float64, numCols)
 	}
+
+	startRow := int(startY / elevationMap.CellSize)
+	startCol := int(startX / elevationMap.CellSize)
 
 	minElevation := math.MaxFloat64
 	maxElevation := -math.MaxFloat64
 
-	// log what's being cropped
-	fmt.Fprintf(os.Stderr, "Cropping from (%d, %d) to (%d, %d)\n", startX, startY, startX+width, startY+height)
+	for row := 0; row < numRows; row++ {
+		for col := 0; col < numCols; col++ {
+			sourceRow := startRow + row
+			sourceCol := startCol + col
 
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			sourceX := startX - elevationMap.MinX + x
-			sourceY := startY - elevationMap.MinY + y
-
-			if sourceY < len(elevationMap.Data) && sourceX < len(elevationMap.Data[sourceY]) {
-				value := elevationMap.Data[sourceY][sourceX]
-				tileData[y][x] = value
+			if sourceRow < len(elevationMap.Data) && sourceCol < len(elevationMap.Data[sourceRow]) {
+				value := elevationMap.Data[sourceRow][sourceCol]
+				tileData[row][col] = value
 
 				if value != NodataValue {
 					if value < minElevation {
@@ -369,14 +418,14 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY int) (*Elevati
 					}
 				}
 			} else {
-				tileData[y][x] = NodataValue
+				tileData[row][col] = NodataValue
 			}
 		}
 	}
 
 	result := &ElevationMap{
-		Width:        width,
-		Height:       height,
+		NumRows:      numRows,
+		NumCols:      numCols,
 		CellSize:     elevationMap.CellSize,
 		MinX:         startX,
 		MaxX:         startX + width,
@@ -391,19 +440,28 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY int) (*Elevati
 }
 
 func (elevationMap *ElevationMap) CropRelative(startX, startY, endX, endY float64) (*ElevationMap, error) {
+	if startX > endX {
+		temp := startX
+		startX = endX
+		endX = temp
+	}
+
+	if startY > endY {
+		temp := startY
+		startY = endY
+		endY = temp
+	}
+
 	if startX < 0 || startX > 1 || startY < 0 || startY > 1 ||
 		endX < 0 || endX > 1 || endY < 0 || endY > 1 ||
 		startX >= endX || startY >= endY {
 		return nil, fmt.Errorf("invalid relative coordinates")
 	}
 
-	absStartX := int(startX * float64(elevationMap.Width))
-	absStartY := int(startY * float64(elevationMap.Height))
-	absEndX := int(endX * float64(elevationMap.Width))
-	absEndY := int(endY * float64(elevationMap.Height))
-
-	width := absEndX - absStartX
-	height := absEndY - absStartY
+	absStartX := startX * elevationMap.GetWidth()
+	absStartY := startY * elevationMap.GetHeight()
+	absEndX := endX * elevationMap.GetWidth()
+	absEndY := endY * elevationMap.GetHeight()
 
 	if absStartX < 0 {
 		absStartX = 0
@@ -411,18 +469,20 @@ func (elevationMap *ElevationMap) CropRelative(startX, startY, endX, endY float6
 	if absStartY < 0 {
 		absStartY = 0
 	}
-	if absEndX > elevationMap.Width {
-		absEndX = elevationMap.Width
-		width = absEndX - absStartX
+	if absEndX > elevationMap.GetWidth() {
+		absEndX = elevationMap.GetWidth()
 	}
-	if absEndY > elevationMap.Height {
-		absEndY = elevationMap.Height
-		height = absEndY - absStartY
+	if absEndY > elevationMap.GetHeight() {
+		absEndY = elevationMap.GetHeight()
 	}
 
-	if width <= 0 || height <= 0 {
-		return nil, fmt.Errorf("invalid crop dimensions")
-	}
+	return elevationMap.Crop(elevationMap.MinX+absStartX, elevationMap.MinY+absStartY, elevationMap.MinX+absEndX, elevationMap.MinY+absEndY)
+}
 
-	return elevationMap.Crop(absStartX+elevationMap.MinX, absStartY+elevationMap.MinY, width, height)
+func (elevationMap *ElevationMap) GetWidth() float64 {
+	return float64(elevationMap.NumCols) * elevationMap.CellSize
+}
+
+func (elevationMap *ElevationMap) GetHeight() float64 {
+	return float64(elevationMap.NumRows) * elevationMap.CellSize
 }

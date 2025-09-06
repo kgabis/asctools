@@ -73,35 +73,23 @@ func Cmd(args []string) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 *lidartools.ElevationMap, diffPow float64, skipElevation bool) (image.Image, error) {
-	minX := max(elevationMap1.MinX, elevationMap2.MinX)
-	maxX := min(elevationMap1.MaxX, elevationMap2.MaxX)
-	minY := max(elevationMap1.MinY, elevationMap2.MinY)
-	maxY := min(elevationMap1.MaxY, elevationMap2.MaxY)
+	minX := math.Max(elevationMap1.MinX, elevationMap2.MinX)
+	maxX := math.Min(elevationMap1.MaxX, elevationMap2.MaxX)
+	minY := math.Max(elevationMap1.MinY, elevationMap2.MinY)
+	maxY := math.Min(elevationMap1.MaxY, elevationMap2.MaxY)
 
-	width := maxX - minX
-	height := maxY - minY
+	imgWidth := int(elevationMap1.GetWidth() / elevationMap1.CellSize)
+	imgHeight := int(elevationMap1.GetHeight() / elevationMap1.CellSize)
 
-	img := image.NewRGBA64(image.Rect(0, 0, width, height))
+	img := image.NewRGBA64(image.Rect(0, 0, imgWidth, imgHeight))
 
 	maxDiff := -math.MaxFloat64
 
-	for y := minY; y < maxY; y++ {
-		for x := minX; x < maxX; x++ {
+	step := elevationMap1.CellSize
+
+	for y := minY; y < maxY; y += step {
+		for x := minX; x < maxX; x += step {
 			elevation1 := elevationMap1.GetElevation(x, y)
 			elevation2 := elevationMap2.GetElevation(x, y)
 			if elevation1 != lidartools.NodataValue && elevation2 != lidartools.NodataValue {
@@ -117,13 +105,13 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 	elevationRange2 := elevationMap2.MaxElevation - elevationMap2.MinElevation
 	elevationRange := math.Max(elevationRange1, elevationRange2)
 
-	for y := minY; y < maxY; y++ {
-		for x := minX; x < maxX; x++ {
-			imgX := x - minX
-			imgY := y - minY
+	for imgY := 0; imgY < imgHeight; imgY++ {
+		for imgX := 0; imgX < imgWidth; imgX++ {
+			mapX := elevationMap1.MinX + float64(imgX)*elevationMap1.CellSize
+			mapY := elevationMap1.MinY + float64(imgY)*elevationMap1.CellSize
 
-			elevation1 := elevationMap1.GetElevation(x, y)
-			elevation2 := elevationMap2.GetElevation(x, y)
+			elevation1 := elevationMap1.GetElevation(mapX, mapY)
+			elevation2 := elevationMap2.GetElevation(mapX, mapY)
 			elevationDiff := math.Abs(elevation2 - elevation1)
 
 			var tintColor color.RGBA64
@@ -161,12 +149,12 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 	}
 
 	// Flip the image vertically
-	for y := 0; y < height/2; y++ {
-		for x := 0; x < width; x++ {
-			top := img.RGBA64At(x, y)
-			bottom := img.RGBA64At(x, height-y-1)
-			img.SetRGBA64(x, y, bottom)
-			img.SetRGBA64(x, height-y-1, top)
+	for imgY := 0; imgY < imgHeight/2; imgY++ {
+		for imgX := 0; imgX < imgWidth; imgX++ {
+			top := img.RGBA64At(imgX, imgY)
+			bottom := img.RGBA64At(imgX, imgHeight-imgY-1)
+			img.SetRGBA64(imgX, imgY, bottom)
+			img.SetRGBA64(imgX, imgHeight-imgY-1, top)
 		}
 	}
 

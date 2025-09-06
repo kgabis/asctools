@@ -60,11 +60,11 @@ func Cmd(args []string) {
 	}
 
 	if uniformSize {
-		fmt.Printf("Splitting %dx%d map into %dx%d grid with uniform tile sizes\n",
-			elevationMap.Width, elevationMap.Height, nrows, ncols)
+		fmt.Printf("Splitting %fx%f map into %dx%d grid with uniform tile sizes\n",
+			elevationMap.GetWidth(), elevationMap.GetHeight(), nrows, ncols)
 	} else {
-		fmt.Printf("Splitting %dx%d map into %dx%d grid\n",
-			elevationMap.Width, elevationMap.Height, nrows, ncols)
+		fmt.Printf("Splitting %fx%f map into %dx%d grid\n",
+			elevationMap.GetWidth(), elevationMap.GetHeight(), nrows, ncols)
 	}
 
 	// Split the map using the ElevationMap Split method
@@ -93,7 +93,7 @@ func Cmd(args []string) {
 				continue
 			}
 
-			fmt.Printf("Created tile: %s (%dx%d)\n", filename, tile.Width, tile.Height)
+			fmt.Printf("Created tile: %s (%fx%f)\n", filename, tile.GetWidth(), tile.GetHeight())
 			tileCount++
 		}
 	}
