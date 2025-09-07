@@ -1,0 +1,38 @@
+package denoise
+
+import (
+	"bufio"
+	"flag"
+	"fmt"
+	lidartools "lidartools/internal"
+	"os"
+)
+
+func Cmd(args []string) {
+	fs := flag.NewFlagSet("denoise", flag.ExitOnError)
+
+	var window int
+	flag.IntVar(&window, "window", 3, "Window size for median filtering (must be odd)")
+
+	fs.Parse(args)
+
+	reader := bufio.NewReader(os.Stdin)
+	elevationMap, err := lidartools.ParseASCFile(reader)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
+		return
+	}
+
+	denoised, err := elevationMap.Denoise(window)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error denoising elevation map:", err)
+		os.Exit(1)
+	}
+
+	err = denoised.WriteASC(bufio.NewWriter(os.Stdout))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error writing denoised map to stdout:", err)
+		os.Exit(1)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -473,4 +474,77 @@ func (elevationMap *ElevationMap) GetWidth() float64 {
 
 func (elevationMap *ElevationMap) GetHeight() float64 {
 	return float64(elevationMap.NumRows) * elevationMap.CellSize
+}
+
+func (elevationMap *ElevationMap) Denoise(windowSize int) (*ElevationMap, error) {
+	if windowSize%2 == 0 || windowSize < 3 {
+		return nil, fmt.Errorf("window size must be an odd number greater than or equal to 3")
+	}
+
+	newMap := &ElevationMap{
+		NumRows:  elevationMap.NumRows,
+		NumCols:  elevationMap.NumCols,
+		CellSize: elevationMap.CellSize,
+		MinX:     elevationMap.MinX,
+		MaxX:     elevationMap.MaxX,
+		MinY:     elevationMap.MinY,
+		MaxY:     elevationMap.MaxY,
+	}
+
+	newMap.Data = make([][]float64, elevationMap.NumRows)
+	for i := range newMap.Data {
+		newMap.Data[i] = make([]float64, elevationMap.NumCols)
+	}
+
+	halfWindow := windowSize / 2
+
+	for row := 0; row < elevationMap.NumRows; row++ {
+		for col := 0; col < elevationMap.NumCols; col++ {
+			neighbors := []float64{}
+
+			for i := -halfWindow; i <= halfWindow; i++ {
+				for j := -halfWindow; j <= halfWindow; j++ {
+					neighborRow, neighborCol := row+i, col+j
+
+					if neighborRow >= 0 && neighborRow < elevationMap.NumRows && neighborCol >= 0 && neighborCol < elevationMap.NumCols {
+						neighbors = append(neighbors, elevationMap.Data[neighborRow][neighborCol])
+					}
+				}
+			}
+			newMap.Data[row][col] = calculateMedian(neighbors)
+		}
+	}
+
+	minElevation := math.MaxFloat64
+	maxElevation := -math.MaxFloat64
+	for row := 0; row < newMap.NumRows; row++ {
+		for col := 0; col < newMap.NumCols; col++ {
+			val := newMap.Data[row][col]
+			if val < minElevation {
+				minElevation = val
+			}
+			if val > maxElevation {
+				maxElevation = val
+			}
+		}
+	}
+	newMap.MinElevation = minElevation
+	newMap.MaxElevation = maxElevation
+
+	return newMap, nil
+}
+
+func calculateMedian(values []float64) float64 {
+	if len(values) == 0 {
+		return 0.0
+	}
+
+	sort.Float64s(values)
+
+	mid := len(values) / 2
+	if len(values)%2 == 0 {
+		return (values[mid-1] + values[mid]) / 2.0
+	}
+
+	return values[mid]
 }

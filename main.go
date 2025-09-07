@@ -5,6 +5,7 @@ import (
 	"lidartools/cmd/asc2png"
 	"lidartools/cmd/asc2stl"
 	"lidartools/cmd/crop"
+	"lidartools/cmd/denoise"
 	"lidartools/cmd/diffasc2png"
 	"lidartools/cmd/merge"
 	"lidartools/cmd/split"
@@ -28,6 +29,8 @@ func main() {
 		split.Cmd(os.Args[2:])
 	case "asc2stl":
 		asc2stl.Cmd(os.Args[2:])
+	case "denoise":
+		denoise.Cmd(os.Args[2:])
 	default:
 		fmt.Println("Unknown command")
 	}
