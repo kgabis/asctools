@@ -12,7 +12,7 @@ func Cmd(args []string) {
 	fs := flag.NewFlagSet("denoise", flag.ExitOnError)
 
 	var window int
-	flag.IntVar(&window, "window", 3, "Window size for median filtering (must be odd)")
+	fs.IntVar(&window, "window", 3, "Window size for median filtering (must be odd)")
 
 	fs.Parse(args)
 
