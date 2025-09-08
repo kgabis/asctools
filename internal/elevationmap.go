@@ -548,3 +548,75 @@ func calculateMedian(values []float64) float64 {
 
 	return values[mid]
 }
+
+func (emap *ElevationMap) Downscale(factor int) (*ElevationMap, error) {
+	if factor <= 1 {
+		return nil, fmt.Errorf("downscale factor must be greater than 1")
+	}
+
+	newNumRows := emap.NumRows / factor
+	newNumCols := emap.NumCols / factor
+
+	if newNumRows == 0 || newNumCols == 0 {
+		return nil, fmt.Errorf("downscale factor is too large, resulting in zero dimensions")
+	}
+
+	newData := make([][]float64, newNumRows)
+	for i := range newData {
+		newData[i] = make([]float64, newNumCols)
+	}
+
+	for r := 0; r < newNumRows; r++ {
+		for c := 0; c < newNumCols; c++ {
+			rowStart := r * factor
+			colStart := c * factor
+			rowEnd := rowStart + factor
+			colEnd := colStart + factor
+
+			var sum float64
+			var count int
+
+			for i := rowStart; i < rowEnd; i++ {
+				for j := colStart; j < colEnd; j++ {
+					if i < emap.NumRows && j < emap.NumCols {
+						sum += emap.Data[i][j]
+						count++
+					}
+				}
+			}
+
+			if count > 0 {
+				newData[r][c] = sum / float64(count)
+			}
+		}
+	}
+
+	newMap := &ElevationMap{
+		NumRows:  newNumRows,
+		NumCols:  newNumCols,
+		CellSize: emap.CellSize * float64(factor),
+		MinX:     emap.MinX,
+		MaxX:     emap.MaxX,
+		MinY:     emap.MinY,
+		MaxY:     emap.MaxY,
+		Data:     newData,
+	}
+
+	minElev := math.Inf(1)
+	maxElev := math.Inf(-1)
+	for r := 0; r < newMap.NumRows; r++ {
+		for c := 0; c < newMap.NumCols; c++ {
+			val := newMap.Data[r][c]
+			if val < minElev {
+				minElev = val
+			}
+			if val > maxElev {
+				maxElev = val
+			}
+		}
+	}
+	newMap.MinElevation = minElev
+	newMap.MaxElevation = maxElev
+
+	return newMap, nil
+}

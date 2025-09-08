@@ -11,9 +11,6 @@ import (
 func Cmd(args []string) {
 	fs := flag.NewFlagSet("asc2stl", flag.ExitOnError)
 
-	var downscaleFactor int
-	fs.IntVar(&downscaleFactor, "downscale", 1, "Downscale factor (must be greater than 1)")
-
 	var resultScale float64
 	fs.Float64Var((*float64)(&resultScale), "scale", 1.0, "Scale factor for the result (must be greater than 0)")
 
