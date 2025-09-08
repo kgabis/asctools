@@ -1,4 +1,4 @@
-package split
+package cmd
 
 import (
 	"bufio"
@@ -10,7 +10,7 @@ import (
 	lidartools "lidartools/internal"
 )
 
-func Cmd(args []string) {
+func Split(args []string) {
 	fs := flag.NewFlagSet("split", flag.ExitOnError)
 
 	var inputFile string

@@ -1,4 +1,4 @@
-package merge
+package cmd
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 	lidartools "lidartools/internal"
 )
 
-func Cmd(args []string) {
+func Merge(args []string) {
 	fs := flag.NewFlagSet("merge", flag.ExitOnError)
 
 	var inputDir string

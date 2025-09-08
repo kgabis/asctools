@@ -1,4 +1,4 @@
-package crop
+package cmd
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	lidartools "lidartools/internal"
 )
 
-func Cmd(args []string) {
+func Crop(args []string) {
 	fs := flag.NewFlagSet("crop", flag.ExitOnError)
 
 	var inputFile string

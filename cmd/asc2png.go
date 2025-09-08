@@ -1,4 +1,4 @@
-package asc2png
+package cmd
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-func Cmd(args []string) {
+func Asc2Png(args []string) {
 	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
 	var absoluteElevation bool
 	fs.BoolVar(&absoluteElevation, "absolute_elevation", false, "If true, encode raw (unscaled) elevation values in the PNG output")
@@ -64,7 +64,6 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 		}
 	}
 
-	// Flip the image vertically
 	for y := 0; y < imgHeight/2; y++ {
 		for x := 0; x < imgWidth; x++ {
 			top := img.Gray16At(x, y)
@@ -87,7 +86,7 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
 			imgX := int(x / elevationMap.CellSize)
 			imgY := int(y / elevationMap.CellSize)
-			// Encode elevation as:
+
 			if elevation == lidartools.NodataValue {
 				img.SetNRGBA(imgX, imgY, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
 			} else {
@@ -105,7 +104,6 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 		}
 	}
 
-	// Flip the image vertically
 	for y := 0; y < imgHeight/2; y++ {
 		for x := 0; x < imgWidth; x++ {
 			top := img.NRGBAAt(x, y)

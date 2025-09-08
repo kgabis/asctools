@@ -2,14 +2,7 @@ package main
 
 import (
 	"fmt"
-	"lidartools/cmd/asc2png"
-	"lidartools/cmd/asc2stl"
-	"lidartools/cmd/crop"
-	"lidartools/cmd/denoise"
-	"lidartools/cmd/diffasc2png"
-	"lidartools/cmd/downscale"
-	"lidartools/cmd/merge"
-	"lidartools/cmd/split"
+	"lidartools/cmd"
 	"os"
 )
 
@@ -19,21 +12,21 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "asc2png":
-		asc2png.Cmd(os.Args[2:])
+		cmd.Asc2Png(os.Args[2:])
 	case "crop":
-		crop.Cmd(os.Args[2:])
+		cmd.Crop(os.Args[2:])
 	case "diffasc2png":
-		diffasc2png.Cmd(os.Args[2:])
+		cmd.DiffAsc2Png(os.Args[2:])
 	case "merge":
-		merge.Cmd(os.Args[2:])
+		cmd.Merge(os.Args[2:])
 	case "split":
-		split.Cmd(os.Args[2:])
+		cmd.Split(os.Args[2:])
 	case "asc2stl":
-		asc2stl.Cmd(os.Args[2:])
+		cmd.Asc2Stl(os.Args[2:])
 	case "denoise":
-		denoise.Cmd(os.Args[2:])
+		cmd.Denoise(os.Args[2:])
 	case "downscale":
-		downscale.Cmd(os.Args[2:])
+		cmd.Downscale(os.Args[2:])
 	default:
 		fmt.Println("Unknown command")
 	}

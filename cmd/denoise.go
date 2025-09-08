@@ -1,4 +1,4 @@
-package denoise
+package cmd
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func Cmd(args []string) {
+func Denoise(args []string) {
 	fs := flag.NewFlagSet("denoise", flag.ExitOnError)
 
 	var window int

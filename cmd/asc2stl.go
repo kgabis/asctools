@@ -1,4 +1,4 @@
-package asc2stl
+package cmd
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func Cmd(args []string) {
+func Asc2Stl(args []string) {
 	fs := flag.NewFlagSet("asc2stl", flag.ExitOnError)
 
 	var resultScale float64

@@ -1,4 +1,4 @@
-package diffasc2png
+package cmd
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-func Cmd(args []string) {
+func DiffAsc2Png(args []string) {
 	fs := flag.NewFlagSet("diffasc2png", flag.ExitOnError)
 
 	var input1 string

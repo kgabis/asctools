@@ -1,4 +1,4 @@
-package downscale
+package cmd
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func Cmd(args []string) {
+func Downscale(args []string) {
 	fs := flag.NewFlagSet("downscale", flag.ExitOnError)
 
 	var downscaleFactor int
