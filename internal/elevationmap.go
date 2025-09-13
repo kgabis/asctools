@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,31 @@ type ElevationMap struct {
 	Data         [][]float64
 	MinElevation float64
 	MaxElevation float64
+}
+
+func makeElevationMap(minX, minY, maxX, maxY, cellSize float64) *ElevationMap {
+	numRows := int((maxY - minY) / cellSize)
+	numCols := int((maxX - minX) / cellSize)
+	data := make([][]float64, numRows)
+	for i := range data {
+		data[i] = make([]float64, numCols)
+		for j := range data[i] {
+			data[i][j] = NodataValue
+		}
+	}
+
+	return &ElevationMap{
+		NumRows:      numRows,
+		NumCols:      numCols,
+		CellSize:     cellSize,
+		MinX:         minX,
+		MaxX:         maxX,
+		MinY:         minY,
+		MaxY:         maxY,
+		Data:         data,
+		MinElevation: math.MaxFloat64,
+		MaxElevation: -math.MaxFloat64,
+	}
 }
 
 func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
@@ -230,8 +256,8 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 		"ncols %d\nnrows %d\nxllcenter %f\nyllcenter %f\ncellsize %f\nNODATA_value %f\n",
 		elevationMap.NumCols,
 		elevationMap.NumRows,
-		(elevationMap.MaxX-elevationMap.MinX)/2,
-		(elevationMap.MaxY-elevationMap.MinY)/2,
+		elevationMap.MinX+elevationMap.GetHeight()/2,
+		elevationMap.MinY+elevationMap.GetWidth()/2,
 		elevationMap.CellSize,
 		NodataValue,
 	)
@@ -352,6 +378,8 @@ func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool
 }
 
 func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*ElevationMap, error) {
+	fmt.Fprintf(os.Stderr, "Cropping (absolute indices) from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
+
 	if startX > endX {
 		temp := startX
 		startX = endX
@@ -383,35 +411,6 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*Ele
 		tileData[i] = make([]float64, numCols)
 	}
 
-	startRow := int(startY / elevationMap.CellSize)
-	startCol := int(startX / elevationMap.CellSize)
-
-	minElevation := math.MaxFloat64
-	maxElevation := -math.MaxFloat64
-
-	for row := 0; row < numRows; row++ {
-		for col := 0; col < numCols; col++ {
-			sourceRow := startRow + row
-			sourceCol := startCol + col
-
-			if sourceRow < len(elevationMap.Data) && sourceCol < len(elevationMap.Data[sourceRow]) {
-				value := elevationMap.Data[sourceRow][sourceCol]
-				tileData[row][col] = value
-
-				if value != NodataValue {
-					if value < minElevation {
-						minElevation = value
-					}
-					if value > maxElevation {
-						maxElevation = value
-					}
-				}
-			} else {
-				tileData[row][col] = NodataValue
-			}
-		}
-	}
-
 	result := &ElevationMap{
 		NumRows:      numRows,
 		NumCols:      numCols,
@@ -421,8 +420,15 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*Ele
 		MinY:         startY,
 		MaxY:         startY + height,
 		Data:         tileData,
-		MinElevation: minElevation,
-		MaxElevation: maxElevation,
+		MinElevation: -math.MaxFloat64,
+		MaxElevation: math.MaxFloat64,
+	}
+
+	for y := startY; y < endY; y += elevationMap.CellSize {
+		for x := startX; x < endX; x += elevationMap.CellSize {
+			value := elevationMap.GetElevation(x, y)
+			result.SetElevation(x, y, value)
+		}
 	}
 
 	return result, nil

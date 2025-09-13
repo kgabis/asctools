@@ -69,16 +69,17 @@ func Crop(args []string) {
 			os.Exit(1)
 		}
 	} else {
-		// Validate absolute indices against map size
 		minX := elevationMap.MinX
 		minY := elevationMap.MinY
-		w := elevationMap.GetWidth()
-		h := elevationMap.GetHeight()
+		maxX := elevationMap.MaxX
+		maxY := elevationMap.MaxY
 
-		if startX < minX || startX > (minX+w) || endX < 0 || endX > (minX+w) ||
-			startY < minY || startY > (minY+h) || endY < 0 || endY > (minY+h) {
-			fmt.Fprintf(os.Stderr, "Error: when -relative is false, start_x must be in [%.1f, %.1f], end_x in [0, %.1f], start_y in [%.1f, %.1f], end_y in [0, %.1f]\n",
-				minX, minX+w, minX+w, minY, minY+h, minY+h)
+		fmt.Fprintf(os.Stderr, "minX: %f, maxX: %f, minY: %f, maxY: %f\n", minX, maxX, minY, maxY)
+
+		if startX < minX || startX > maxX || endX < minX || endX > maxX ||
+			startY < minY || startY > maxY || endY < minY || endY > maxY {
+			fmt.Fprintf(os.Stderr, "Error: when -relative is false, x must be in [%.1f, %.1f], y in [%.1f, %.1f]\n",
+				minX, maxX, minY, maxY)
 			os.Exit(1)
 		}
 	}
