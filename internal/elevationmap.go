@@ -79,36 +79,18 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 		}
 	}
 
-	width := maxX - minX
-	height := maxY - minY
-
-	numRows := int(height / cellSize)
-	numCols := int(width / cellSize)
-
-	merged := &ElevationMap{
-		MinX:         minX,
-		MinY:         minY,
-		MaxX:         maxX,
-		MaxY:         maxY,
-		NumRows:      numRows,
-		NumCols:      numCols,
-		CellSize:     cellSize,
-		MinElevation: math.MaxFloat64,
-		MaxElevation: -math.MaxFloat64,
-		Data:         make([][]float64, numRows),
-	}
-
-	for i := range merged.Data {
-		merged.Data[i] = make([]float64, numCols)
-		for j := range merged.Data[i] {
-			merged.Data[i][j] = NodataValue
-		}
-	}
+	merged := makeElevationMap(minX, minY, maxX, maxY, cellSize)
 
 	for _, m := range maps {
 		if m.NumRows != len(m.Data) || m.NumCols != len(m.Data[0]) {
 			return nil, fmt.Errorf("map dimensions do not match data size")
 		}
+		// fmt.Fprintf(os.Stderr, "Map raw data: %dx%d\n", m.NumCols, m.NumRows)
+		// for _, row := range m.Data {
+		// 	for _, v := range row {
+		// 		fmt.Fprintf(os.Stderr, "  Value %.2f\n", v)
+		// 	}
+		// }
 		for y := m.MinY; y < m.MaxY; y += m.CellSize {
 			for x := m.MinX; x < m.MaxX; x += m.CellSize {
 				value := m.GetElevation(x, y)
@@ -120,6 +102,13 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 	}
 
 	merged.fixHoles()
+
+	// fmt.Fprintf(os.Stderr, "Merged map raw data: %dx%d\n", merged.NumCols, merged.NumRows)
+	// for rowix, row := range merged.Data {
+	// 	for col, v := range row {
+	// 		fmt.Fprintf(os.Stderr, "[%d, %d] Value %.2f\n", col, rowix, v)
+	// 	}
+	// }
 
 	return merged, nil
 }
@@ -166,18 +155,13 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 256*1024*1024)
 
-	elevationMap := ElevationMap{
-		MinX:         math.MaxInt,
-		MinY:         math.MaxInt,
-		MaxX:         -math.MaxInt,
-		MaxY:         -math.MaxInt,
-		MinElevation: math.MaxFloat32,
-		MaxElevation: -math.MaxFloat32,
-	}
-
 	mapNodataValue := NodataValue
 	centerX := 0.0
 	centerY := 0.0
+	numRows := 0
+	numCols := 0
+	cellSize := 1.0
+
 	for i := 0; i < 6; i++ {
 		scanner.Scan()
 		parts := strings.Fields(scanner.Text())
@@ -186,41 +170,49 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 		}
 		switch strings.ToLower(parts[0]) {
 		case "ncols":
-			elevationMap.NumCols, _ = strconv.Atoi(parts[1])
+			numCols, _ = strconv.Atoi(parts[1])
 		case "nrows":
-			elevationMap.NumRows, _ = strconv.Atoi(parts[1])
-		case "xllcenter":
-			centerX, _ = strconv.ParseFloat(parts[1], 64)
+			numRows, _ = strconv.Atoi(parts[1])
 		case "yllcenter":
 			centerY, _ = strconv.ParseFloat(parts[1], 64)
+		case "xllcenter":
+			centerX, _ = strconv.ParseFloat(parts[1], 64)
 		case "cellsize":
-			elevationMap.CellSize, _ = strconv.ParseFloat(parts[1], 64)
+			cellSize, _ = strconv.ParseFloat(parts[1], 64)
 		case "nodata_value":
 			mapNodataValue, _ = strconv.ParseFloat(parts[1], 64)
 		}
 	}
 
-	elevationMap.Data = make([][]float64, elevationMap.NumRows)
-	for i := range elevationMap.Data {
-		elevationMap.Data[i] = make([]float64, elevationMap.NumCols)
+	width := float64(numCols) * cellSize
+	height := float64(numRows) * cellSize
+
+	minX := centerX - width/2
+	maxX := centerX + width/2
+	minY := centerY - height/2
+	maxY := centerY + height/2
+
+	elevationMap := makeElevationMap(minX, minY, maxX, maxY, cellSize)
+
+	if numRows != elevationMap.NumRows || numCols != elevationMap.NumCols {
+		return nil, fmt.Errorf("parsed map dimensions do not match expected dimensions, this should not happen")
+	}
+
+	for row := 0; row < elevationMap.NumRows; row++ {
 		if !scanner.Scan() {
-			return nil, fmt.Errorf("unexpected end of file at row %d", i)
+			return nil, fmt.Errorf("unexpected end of file at row %d", row)
 		}
-		row := strings.Fields(scanner.Text())
-		if len(row) != elevationMap.NumCols {
-			return nil, fmt.Errorf("wrong number of columns at row %d", i)
+		rowData := strings.Fields(scanner.Text())
+		if len(rowData) != elevationMap.NumCols {
+			return nil, fmt.Errorf("wrong number of columns at row %d", row)
 		}
-		for j, v := range row {
-			val, _ := strconv.ParseFloat(v, 64)
+		for col, rawVal := range rowData {
+			val, _ := strconv.ParseFloat(rawVal, 64)
 			if val == mapNodataValue {
 				val = NodataValue
 			}
-			elevationMap.Data[i][j] = val
+			elevationMap.Data[row][col] = val
 		}
-	}
-
-	for i := 0; i < len(elevationMap.Data)/2; i++ {
-		elevationMap.Data[i], elevationMap.Data[len(elevationMap.Data)-1-i] = elevationMap.Data[len(elevationMap.Data)-1-i], elevationMap.Data[i]
 	}
 
 	for _, row := range elevationMap.Data {
@@ -240,24 +232,16 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 		return nil, fmt.Errorf("error reading data: %v", err)
 	}
 
-	width := float64(elevationMap.NumCols) * elevationMap.CellSize
-	height := float64(elevationMap.NumRows) * elevationMap.CellSize
-
-	elevationMap.MinX = centerX - width/2
-	elevationMap.MaxX = centerX + width/2
-	elevationMap.MinY = centerY - height/2
-	elevationMap.MaxY = centerY + height/2
-
-	return &elevationMap, nil
+	return elevationMap, nil
 }
 
 func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 	header := fmt.Sprintf(
-		"ncols %d\nnrows %d\nxllcenter %f\nyllcenter %f\ncellsize %f\nNODATA_value %f\n",
+		"ncols %d\nnrows %d\nxllcenter %.2f\nyllcenter %.2f\ncellsize %.2f\nnodata_value %.0f\n",
 		elevationMap.NumCols,
 		elevationMap.NumRows,
-		elevationMap.MinX+elevationMap.GetHeight()/2,
-		elevationMap.MinY+elevationMap.GetWidth()/2,
+		elevationMap.MinX+elevationMap.GetWidth()/2,
+		elevationMap.MinY+elevationMap.GetHeight()/2,
 		elevationMap.CellSize,
 		NodataValue,
 	)
@@ -265,8 +249,7 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 		return fmt.Errorf("failed to write header: %v", err)
 	}
 
-	for i := len(elevationMap.Data) - 1; i >= 0; i-- {
-		row := elevationMap.Data[i]
+	for _, row := range elevationMap.Data {
 		values := make([]string, len(row))
 		for j, v := range row {
 			values[j] = strconv.FormatFloat(v, 'f', -1, 64)
@@ -392,7 +375,7 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*Ele
 		endY = temp
 	}
 
-	if startX < elevationMap.MinX || endX >= elevationMap.MaxX || startY < elevationMap.MinY || endY >= elevationMap.MaxY {
+	if startX < elevationMap.MinX || endX > elevationMap.MaxX || startY < elevationMap.MinY || endY > elevationMap.MaxY {
 		return nil, fmt.Errorf("position out of range")
 	}
 

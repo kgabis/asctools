@@ -10,12 +10,17 @@ import (
 	lidartools "lidartools/internal"
 	"math"
 	"os"
+
+	"golang.org/x/image/draw"
 )
 
 func Asc2Png(args []string) {
 	fs := flag.NewFlagSet("asc2png", flag.ExitOnError)
 	var absoluteElevation bool
 	fs.BoolVar(&absoluteElevation, "absolute_elevation", false, "If true, encode raw (unscaled) elevation values in the PNG output")
+
+	var scale float64
+	fs.Float64Var(&scale, "scale", 1.0, "Scale factor for the result (must be greater than 0)")
 
 	fs.Parse(args)
 
@@ -37,6 +42,14 @@ func Asc2Png(args []string) {
 		return
 	}
 
+	if scale != 1.0 {
+		newWidth := int(float64(img.Bounds().Dx()) * scale)
+		newHeight := int(float64(img.Bounds().Dy()) * scale)
+		scaledImg := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+		draw.NearestNeighbor.Scale(scaledImg, scaledImg.Bounds(), img, img.Bounds(), draw.Over, nil)
+		img = scaledImg
+	}
+
 	err = png.Encode(os.Stdout, img)
 	if err != nil {
 		fmt.Printf("Error encoding PNG: %v\n", err)
@@ -54,22 +67,15 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize {
 		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize {
 			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
+			imgX := int(x / elevationMap.CellSize)
+			imgY := imgHeight - 1 - int(y/elevationMap.CellSize)
 			if elevation == lidartools.NodataValue {
-				img.SetGray16(int(x/elevationMap.CellSize), int(y/elevationMap.CellSize), color.Gray16{Y: 0})
+				img.SetGray16(imgX, imgY, color.Gray16{Y: 0})
 			} else {
 				normalized := (elevation - elevationMap.MinElevation) / elevationRange
 				grayValue := uint16(normalized * math.MaxUint16)
-				img.SetGray16(int(x/elevationMap.CellSize), int(y/elevationMap.CellSize), color.Gray16{Y: grayValue})
+				img.SetGray16(imgX, imgY, color.Gray16{Y: grayValue})
 			}
-		}
-	}
-
-	for y := 0; y < imgHeight/2; y++ {
-		for x := 0; x < imgWidth; x++ {
-			top := img.Gray16At(x, y)
-			bottom := img.Gray16At(x, imgHeight-y-1)
-			img.SetGray16(x, y, bottom)
-			img.SetGray16(x, imgHeight-y-1, top)
 		}
 	}
 
@@ -85,7 +91,7 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize {
 			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
 			imgX := int(x / elevationMap.CellSize)
-			imgY := int(y / elevationMap.CellSize)
+			imgY := imgHeight - 1 - int(y/elevationMap.CellSize)
 
 			if elevation == lidartools.NodataValue {
 				img.SetNRGBA(imgX, imgY, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
@@ -101,15 +107,6 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 					color.NRGBA{R: r, G: g, B: b, A: 255},
 				)
 			}
-		}
-	}
-
-	for y := 0; y < imgHeight/2; y++ {
-		for x := 0; x < imgWidth; x++ {
-			top := img.NRGBAAt(x, y)
-			bottom := img.NRGBAAt(x, imgHeight-y-1)
-			img.SetNRGBA(x, y, bottom)
-			img.SetNRGBA(x, imgHeight-y-1, top)
 		}
 	}
 
