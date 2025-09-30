@@ -85,12 +85,6 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 		if m.NumRows != len(m.Data) || m.NumCols != len(m.Data[0]) {
 			return nil, fmt.Errorf("map dimensions do not match data size")
 		}
-		// fmt.Fprintf(os.Stderr, "Map raw data: %dx%d\n", m.NumCols, m.NumRows)
-		// for _, row := range m.Data {
-		// 	for _, v := range row {
-		// 		fmt.Fprintf(os.Stderr, "  Value %.2f\n", v)
-		// 	}
-		// }
 		for y := m.MinY; y < m.MaxY; y += m.CellSize {
 			for x := m.MinX; x < m.MaxX; x += m.CellSize {
 				value := m.GetElevation(x, y)
@@ -102,13 +96,6 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 	}
 
 	merged.fixHoles()
-
-	// fmt.Fprintf(os.Stderr, "Merged map raw data: %dx%d\n", merged.NumCols, merged.NumRows)
-	// for rowix, row := range merged.Data {
-	// 	for col, v := range row {
-	// 		fmt.Fprintf(os.Stderr, "[%d, %d] Value %.2f\n", col, rowix, v)
-	// 	}
-	// }
 
 	return merged, nil
 }
