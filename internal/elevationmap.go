@@ -257,7 +257,8 @@ func (elevationMap *ElevationMap) GetElevation(x float64, y float64) float64 {
 		row := int(mapY / elevationMap.CellSize)
 		col := int(mapX / elevationMap.CellSize)
 		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
-			value := elevationMap.Data[row][col]
+			realRow := len(elevationMap.Data) - 1 - row
+			value := elevationMap.Data[realRow][col]
 			return value
 		}
 	}
@@ -272,7 +273,8 @@ func (elevationMap *ElevationMap) SetElevation(x float64, y float64, value float
 		row := int(mapY / elevationMap.CellSize)
 		col := int(mapX / elevationMap.CellSize)
 		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
-			elevationMap.Data[row][col] = value
+			realRow := len(elevationMap.Data) - 1 - row
+			elevationMap.Data[realRow][col] = value
 			if value != NodataValue {
 				if value < elevationMap.MinElevation {
 					elevationMap.MinElevation = value
