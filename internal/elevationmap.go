@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -350,8 +349,6 @@ func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool
 }
 
 func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*ElevationMap, error) {
-	fmt.Fprintf(os.Stderr, "Cropping (absolute indices) from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
-
 	if startX > endX {
 		temp := startX
 		startX = endX
@@ -375,26 +372,7 @@ func (elevationMap *ElevationMap) Crop(startX, startY, endX, endY float64) (*Ele
 		return nil, fmt.Errorf("invalid crop dimensions")
 	}
 
-	numRows := int(height / elevationMap.CellSize)
-	numCols := int(width / elevationMap.CellSize)
-
-	tileData := make([][]float64, numRows)
-	for i := range tileData {
-		tileData[i] = make([]float64, numCols)
-	}
-
-	result := &ElevationMap{
-		NumRows:      numRows,
-		NumCols:      numCols,
-		CellSize:     elevationMap.CellSize,
-		MinX:         startX,
-		MaxX:         startX + width,
-		MinY:         startY,
-		MaxY:         startY + height,
-		Data:         tileData,
-		MinElevation: -math.MaxFloat64,
-		MaxElevation: math.MaxFloat64,
-	}
+	result := makeElevationMap(startX, startY, endX, endY, elevationMap.CellSize)
 
 	for y := startY; y < endY; y += elevationMap.CellSize {
 		for x := startX; x < endX; x += elevationMap.CellSize {
@@ -459,55 +437,33 @@ func (elevationMap *ElevationMap) Denoise(windowSize int) (*ElevationMap, error)
 		return nil, fmt.Errorf("window size must be an odd number greater than or equal to 3")
 	}
 
-	newMap := &ElevationMap{
-		NumRows:  elevationMap.NumRows,
-		NumCols:  elevationMap.NumCols,
-		CellSize: elevationMap.CellSize,
-		MinX:     elevationMap.MinX,
-		MaxX:     elevationMap.MaxX,
-		MinY:     elevationMap.MinY,
-		MaxY:     elevationMap.MaxY,
-	}
-
-	newMap.Data = make([][]float64, elevationMap.NumRows)
-	for i := range newMap.Data {
-		newMap.Data[i] = make([]float64, elevationMap.NumCols)
-	}
+	newMap := makeElevationMap(elevationMap.MinX, elevationMap.MinY, elevationMap.MaxX, elevationMap.MaxY, elevationMap.CellSize)
 
 	halfWindow := windowSize / 2
 
-	for row := 0; row < elevationMap.NumRows; row++ {
-		for col := 0; col < elevationMap.NumCols; col++ {
-			neighbors := []float64{}
+	for y := elevationMap.MinY; y < elevationMap.MaxY; y += elevationMap.CellSize {
+		for x := elevationMap.MinX; x < elevationMap.MaxX; x += elevationMap.CellSize {
+			neighbours := []float64{}
 
 			for i := -halfWindow; i <= halfWindow; i++ {
 				for j := -halfWindow; j <= halfWindow; j++ {
-					neighborRow, neighborCol := row+i, col+j
+					neighbourX := x + float64(j)*elevationMap.CellSize
+					neighbourY := y + float64(i)*elevationMap.CellSize
 
-					if neighborRow >= 0 && neighborRow < elevationMap.NumRows && neighborCol >= 0 && neighborCol < elevationMap.NumCols {
-						neighbors = append(neighbors, elevationMap.Data[neighborRow][neighborCol])
+					if neighbourX < elevationMap.MinX || neighbourX >= elevationMap.MaxX ||
+						neighbourY < elevationMap.MinY || neighbourY >= elevationMap.MaxY {
+						continue
 					}
+					value := elevationMap.GetElevation(neighbourX, neighbourY)
+					if value == NodataValue {
+						continue
+					}
+					neighbours = append(neighbours, value)
 				}
 			}
-			newMap.Data[row][col] = calculateMedian(neighbors)
+			newMap.SetElevation(x, y, calculateMedian(neighbours))
 		}
 	}
-
-	minElevation := math.MaxFloat64
-	maxElevation := -math.MaxFloat64
-	for row := 0; row < newMap.NumRows; row++ {
-		for col := 0; col < newMap.NumCols; col++ {
-			val := newMap.Data[row][col]
-			if val < minElevation {
-				minElevation = val
-			}
-			if val > maxElevation {
-				maxElevation = val
-			}
-		}
-	}
-	newMap.MinElevation = minElevation
-	newMap.MaxElevation = maxElevation
 
 	return newMap, nil
 }
@@ -527,74 +483,35 @@ func calculateMedian(values []float64) float64 {
 	return values[mid]
 }
 
-func (emap *ElevationMap) Downscale(factor int) (*ElevationMap, error) {
+func (elevationMap *ElevationMap) Downscale(factor int) (*ElevationMap, error) {
 	if factor <= 1 {
 		return nil, fmt.Errorf("downscale factor must be greater than 1")
 	}
 
-	newNumRows := emap.NumRows / factor
-	newNumCols := emap.NumCols / factor
-
-	if newNumRows == 0 || newNumCols == 0 {
-		return nil, fmt.Errorf("downscale factor is too large, resulting in zero dimensions")
-	}
-
-	newData := make([][]float64, newNumRows)
-	for i := range newData {
-		newData[i] = make([]float64, newNumCols)
-	}
-
-	for r := 0; r < newNumRows; r++ {
-		for c := 0; c < newNumCols; c++ {
-			rowStart := r * factor
-			colStart := c * factor
-			rowEnd := rowStart + factor
-			colEnd := colStart + factor
-
+	newMap := makeElevationMap(elevationMap.MinX, elevationMap.MinY, elevationMap.MaxX, elevationMap.MaxY, elevationMap.CellSize*float64(factor))
+	for y := newMap.MinY; y < newMap.MaxY; y += newMap.CellSize {
+		for x := newMap.MinX; x < newMap.MaxX; x += newMap.CellSize {
 			var sum float64
 			var count int
 
-			for i := rowStart; i < rowEnd; i++ {
-				for j := colStart; j < colEnd; j++ {
-					if i < emap.NumRows && j < emap.NumCols {
-						sum += emap.Data[i][j]
+			for subY := y; subY < y+newMap.CellSize; subY += elevationMap.CellSize {
+				for subX := x; subX < x+newMap.CellSize; subX += elevationMap.CellSize {
+					elevation := elevationMap.GetElevation(subX, subY)
+					if elevation != NodataValue {
+						sum += elevation
 						count++
 					}
 				}
 			}
 
 			if count > 0 {
-				newData[r][c] = sum / float64(count)
+				average := sum / float64(count)
+				newMap.SetElevation(x+newMap.CellSize/2, y+newMap.CellSize/2, average)
+			} else {
+				newMap.SetElevation(x+newMap.CellSize/2, y+newMap.CellSize/2, NodataValue)
 			}
 		}
 	}
-
-	newMap := &ElevationMap{
-		NumRows:  newNumRows,
-		NumCols:  newNumCols,
-		CellSize: emap.CellSize * float64(factor),
-		MinX:     emap.MinX,
-		MaxX:     emap.MaxX,
-		MinY:     emap.MinY,
-		MaxY:     emap.MaxY,
-		Data:     newData,
-	}
-
-	minElev := math.Inf(1)
-	maxElev := math.Inf(-1)
-	for r := 0; r < newMap.NumRows; r++ {
-		for c := 0; c < newMap.NumCols; c++ {
-			val := newMap.Data[r][c]
-			if val < minElev {
-				minElev = val
-			}
-			if val > maxElev {
-				maxElev = val
-			}
-		}
-	}
-	newMap.MinElevation = minElev
-	newMap.MaxElevation = maxElev
 
 	return newMap, nil
 }
