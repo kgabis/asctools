@@ -13,9 +13,6 @@ import (
 func Split(args []string) {
 	fs := flag.NewFlagSet("split", flag.ExitOnError)
 
-	var inputFile string
-	fs.StringVar(&inputFile, "input", "", "Path to the input ASC file to split")
-
 	var outputDir string
 	fs.StringVar(&outputDir, "output_dir", ".", "Directory to save the split ASC files")
 
@@ -33,27 +30,14 @@ func Split(args []string) {
 
 	fs.Parse(args)
 
-	if inputFile == "" {
-		fmt.Fprintln(os.Stderr, "Error: input file is required")
-		fs.Usage()
-		os.Exit(1)
-	}
+	inputReader := bufio.NewReader(os.Stdin)
 
-	// Open and parse the input ASC file
-	file, err := os.Open(inputFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening input file: %v\n", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-
-	elevationMap, err := lidartools.ParseASCFile(bufio.NewReader(file))
+	elevationMap, err := lidartools.ParseASCFile(inputReader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
 		os.Exit(1)
@@ -67,7 +51,6 @@ func Split(args []string) {
 			elevationMap.GetWidth(), elevationMap.GetHeight(), nrows, ncols)
 	}
 
-	// Split the map using the ElevationMap Split method
 	tiles, err := elevationMap.Split(nrows, ncols, uniformSize)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error splitting map: %v\n", err)
@@ -75,7 +58,7 @@ func Split(args []string) {
 	}
 
 	tileCount := 0
-	// Write each tile to a file
+
 	for row := 0; row < nrows; row++ {
 		for col := 0; col < ncols; col++ {
 			tile := tiles[row][col]
@@ -83,11 +66,9 @@ func Split(args []string) {
 				continue
 			}
 
-			// Generate output filename
 			filename := fmt.Sprintf("%s_%d_%d.asc", prefix, row, col)
 			outputPath := filepath.Join(outputDir, filename)
 
-			// Write the tile to file
 			if err := writeTileToFile(tile, outputPath); err != nil {
 				fmt.Fprintf(os.Stderr, "Error writing tile %s: %v\n", filename, err)
 				continue
