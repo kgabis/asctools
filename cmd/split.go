@@ -43,14 +43,6 @@ func Split(args []string) {
 		os.Exit(1)
 	}
 
-	if uniformSize {
-		fmt.Printf("Splitting %fx%f map into %dx%d grid with uniform tile sizes\n",
-			elevationMap.GetWidth(), elevationMap.GetHeight(), nrows, ncols)
-	} else {
-		fmt.Printf("Splitting %fx%f map into %dx%d grid\n",
-			elevationMap.GetWidth(), elevationMap.GetHeight(), nrows, ncols)
-	}
-
 	tiles, err := elevationMap.Split(nrows, ncols, uniformSize)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error splitting map: %v\n", err)
@@ -74,12 +66,9 @@ func Split(args []string) {
 				continue
 			}
 
-			fmt.Printf("Created tile: %s (%fx%f)\n", filename, tile.GetWidth(), tile.GetHeight())
 			tileCount++
 		}
 	}
-
-	fmt.Printf("Successfully split into %d tiles\n", tileCount)
 }
 
 func writeTileToFile(tile *lidartools.ElevationMap, outputPath string) error {

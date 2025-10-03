@@ -17,6 +17,9 @@ func Asc2Stl(args []string) {
 	var floorElevation float64
 	fs.Float64Var(&floorElevation, "floor", 0.0, "Floor elevation level (default is 0.0)")
 
+	var floorMargin float64
+	fs.Float64Var(&floorMargin, "floor_margin", 0.0, "Margin to add around the base of the model (only works when floor is not set)")
+
 	fs.Parse(args)
 
 	reader := bufio.NewReader(os.Stdin)
@@ -27,7 +30,7 @@ func Asc2Stl(args []string) {
 		return
 	}
 
-	err = elevationMap.WriteSTL(bufio.NewWriter(os.Stdout), floorElevation)
+	err = elevationMap.WriteSTL(bufio.NewWriter(os.Stdout), floorElevation, floorMargin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error writing STL to stdout:", err)
 		os.Exit(1)
