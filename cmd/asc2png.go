@@ -7,7 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 	"math"
 	"os"
 
@@ -25,7 +25,7 @@ func Asc2Png(args []string) {
 	fs.Parse(args)
 
 	reader := bufio.NewReader(os.Stdin)
-	elevationMap, err := lidartools.ParseASCFile(reader)
+	elevationMap, err := asctools.ParseASCFile(reader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
 		return
@@ -57,7 +57,7 @@ func Asc2Png(args []string) {
 	}
 }
 
-func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error) {
+func renderMapToImage(elevationMap *asctools.ElevationMap) (image.Image, error) {
 	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
 	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
 	img := image.NewGray16(image.Rect(0, 0, imgWidth, imgHeight))
@@ -69,7 +69,7 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
 			imgX := int(x / elevationMap.CellSize)
 			imgY := imgHeight - 1 - int(y/elevationMap.CellSize)
-			if elevation == lidartools.NodataValue {
+			if elevation == asctools.NodataValue {
 				img.SetGray16(imgX, imgY, color.Gray16{Y: 0})
 			} else {
 				normalized := (elevation - elevationMap.MinElevation) / elevationRange
@@ -82,7 +82,7 @@ func renderMapToImage(elevationMap *lidartools.ElevationMap) (image.Image, error
 	return img, nil
 }
 
-func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Image, error) {
+func renderMapToImageAbsolute(elevationMap *asctools.ElevationMap) (image.Image, error) {
 	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
 	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
 	img := image.NewNRGBA(image.Rect(0, 0, imgWidth, imgHeight))
@@ -93,7 +93,7 @@ func renderMapToImageAbsolute(elevationMap *lidartools.ElevationMap) (image.Imag
 			imgX := int(x / elevationMap.CellSize)
 			imgY := imgHeight - 1 - int(y/elevationMap.CellSize)
 
-			if elevation == lidartools.NodataValue {
+			if elevation == asctools.NodataValue {
 				img.SetNRGBA(imgX, imgY, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				intPart := int(math.Floor(elevation))

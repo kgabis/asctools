@@ -7,7 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 	"math"
 	"os"
 )
@@ -48,13 +48,13 @@ func DiffAsc2Png(args []string) {
 	}
 	defer file2.Close()
 
-	elevationMap1, err := lidartools.ParseASCFile(bufio.NewReader(file1))
+	elevationMap1, err := asctools.ParseASCFile(bufio.NewReader(file1))
 	if err != nil {
 		fmt.Println("Error reading elevation map:", err)
 		return
 	}
 
-	elevationMap2, err := lidartools.ParseASCFile(bufio.NewReader(file2))
+	elevationMap2, err := asctools.ParseASCFile(bufio.NewReader(file2))
 	if err != nil {
 		fmt.Println("Error reading elevation map:", err)
 		return
@@ -73,7 +73,7 @@ func DiffAsc2Png(args []string) {
 	}
 }
 
-func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 *lidartools.ElevationMap, diffPow float64, skipElevation bool) (image.Image, error) {
+func renderMapDiffToImage(elevationMap1 *asctools.ElevationMap, elevationMap2 *asctools.ElevationMap, diffPow float64, skipElevation bool) (image.Image, error) {
 	minX := math.Max(elevationMap1.MinX, elevationMap2.MinX)
 	maxX := math.Min(elevationMap1.MaxX, elevationMap2.MaxX)
 	minY := math.Max(elevationMap1.MinY, elevationMap2.MinY)
@@ -92,7 +92,7 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 		for x := minX; x < maxX; x += step {
 			elevation1 := elevationMap1.GetElevation(x, y)
 			elevation2 := elevationMap2.GetElevation(x, y)
-			if elevation1 != lidartools.NodataValue && elevation2 != lidartools.NodataValue {
+			if elevation1 != asctools.NodataValue && elevation2 != asctools.NodataValue {
 				diff := math.Abs(elevation2 - elevation1)
 				if diff > maxDiff {
 					maxDiff = diff
@@ -120,7 +120,7 @@ func renderMapDiffToImage(elevationMap1 *lidartools.ElevationMap, elevationMap2 
 			} else {
 				tintColor = color.RGBA64{R: 0, G: math.MaxUint16, B: 0, A: math.MaxUint16}
 			}
-			if elevation1 == lidartools.NodataValue || elevation2 == lidartools.NodataValue {
+			if elevation1 == asctools.NodataValue || elevation2 == asctools.NodataValue {
 				img.SetRGBA64(imgX, imgY, color.RGBA64{R: 0, G: 0, B: 0, A: 0})
 			} else {
 				normalized := (elevation1 - elevationMap1.MinElevation) / elevationRange

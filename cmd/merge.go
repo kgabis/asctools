@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 )
 
 func Merge(args []string) {
@@ -23,7 +23,7 @@ func Merge(args []string) {
 		os.Exit(1)
 	}
 
-	var maps []*lidartools.ElevationMap
+	var maps []*asctools.ElevationMap
 
 	files, err := os.ReadDir(inputDir)
 	if err != nil {
@@ -41,7 +41,7 @@ func Merge(args []string) {
 			}
 			bufioreader := bufio.NewReader(reader)
 			defer reader.Close()
-			slice, err := lidartools.ParseASCFile(bufioreader)
+			slice, err := asctools.ParseASCFile(bufioreader)
 			reader.Close()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error reading ASC file:", path, err)
@@ -56,7 +56,7 @@ func Merge(args []string) {
 		os.Exit(1)
 	}
 
-	mergedMap, err := lidartools.MergeMaps(maps)
+	mergedMap, err := asctools.MergeMaps(maps)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error merging elevation maps:", err)
 		os.Exit(1)

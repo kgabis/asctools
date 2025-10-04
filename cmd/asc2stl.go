@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 	"os"
 )
 
@@ -23,7 +23,7 @@ func Asc2Stl(args []string) {
 	fs.Parse(args)
 
 	reader := bufio.NewReader(os.Stdin)
-	elevationMap, err := lidartools.ParseASCFile(reader)
+	elevationMap, err := asctools.ParseASCFile(reader)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)

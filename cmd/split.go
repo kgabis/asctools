@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 )
 
 func Split(args []string) {
@@ -32,7 +32,7 @@ func Split(args []string) {
 
 	inputReader := bufio.NewReader(os.Stdin)
 
-	elevationMap, err := lidartools.ParseASCFile(inputReader)
+	elevationMap, err := asctools.ParseASCFile(inputReader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
 		os.Exit(1)
@@ -71,7 +71,7 @@ func Split(args []string) {
 	}
 }
 
-func writeTileToFile(tile *lidartools.ElevationMap, outputPath string) error {
+func writeTileToFile(tile *asctools.ElevationMap, outputPath string) error {
 	file, err := os.Create(outputPath)
 	if err != nil {
 		return err

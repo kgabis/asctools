@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	lidartools "lidartools/internal"
+	asctools "asctools/internal"
 )
 
 func Crop(args []string) {
@@ -46,13 +46,11 @@ func Crop(args []string) {
 		reader = bufio.NewReader(file)
 	}
 
-	elevationMap, err := lidartools.ParseASCFile(reader)
+	elevationMap, err := asctools.ParseASCFile(reader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing ASC file: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Fprintf(os.Stderr, "Original map: %fx%f\n", elevationMap.GetWidth(), elevationMap.GetHeight())
 
 	var relStartX, relStartY, relEndX, relEndY float64
 	if relative {
@@ -74,8 +72,6 @@ func Crop(args []string) {
 		maxX := elevationMap.MaxX
 		maxY := elevationMap.MaxY
 
-		fmt.Fprintf(os.Stderr, "minX: %f, maxX: %f, minY: %f, maxY: %f\n", minX, maxX, minY, maxY)
-
 		if startX < minX || startX > maxX || endX < minX || endX > maxX ||
 			startY < minY || startY > maxY || endY < minY || endY > maxY {
 			fmt.Fprintf(os.Stderr, "Error: when -relative is false, x must be in [%.1f, %.1f], y in [%.1f, %.1f]\n",
@@ -84,12 +80,10 @@ func Crop(args []string) {
 		}
 	}
 
-	var croppedMap *lidartools.ElevationMap
+	var croppedMap *asctools.ElevationMap
 	if relative {
-		fmt.Fprintf(os.Stderr, "Cropping (relative) from (%.3f, %.3f) to (%.3f, %.3f)\n", relStartX, relStartY, relEndX, relEndY)
 		croppedMap, err = elevationMap.CropRelative(relStartX, relStartY, relEndX, relEndY)
 	} else {
-		fmt.Fprintf(os.Stderr, "Cropping (absolute indices) from (%.3f, %.3f) to (%.3f, %.3f)\n", startX, startY, endX, endY)
 		croppedMap, err = elevationMap.Crop(startX, startY, endX, endY)
 	}
 
@@ -97,8 +91,6 @@ func Crop(args []string) {
 		fmt.Fprintf(os.Stderr, "Error cropping map: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Fprintf(os.Stderr, "Cropped map: %fx%f\n", croppedMap.GetWidth(), croppedMap.GetHeight())
 
 	writer := bufio.NewWriter(os.Stdout)
 	defer writer.Flush()
