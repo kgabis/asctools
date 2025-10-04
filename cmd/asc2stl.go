@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	asctools "asctools/internal"
 	"bufio"
 	"flag"
 	"fmt"
-	asctools "asctools/internal"
 	"os"
 )
 
@@ -30,7 +30,11 @@ func Asc2Stl(args []string) {
 		return
 	}
 
-	err = elevationMap.WriteSTL(bufio.NewWriter(os.Stdout), floorElevation, floorMargin)
+	if floorElevation == 0 && floorMargin > 0 {
+		floorElevation = elevationMap.MinElevation - floorMargin
+	}
+
+	err = elevationMap.WriteSTL(bufio.NewWriter(os.Stdout), floorElevation)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error writing STL to stdout:", err)
 		os.Exit(1)

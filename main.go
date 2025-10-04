@@ -9,6 +9,7 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("No argument provided")
+		return
 	}
 	switch os.Args[1] {
 	case "asc2png":

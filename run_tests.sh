@@ -2,6 +2,12 @@
 
 set -e
 
+echo "Building asctools..."
+go build -o asctools
+
+echo "Cleaning temp directory"
+rm -rf test/temp
+
 run_merge_test() {
     local TEMP_OUTPUT="test/temp/merged.asc"
     local EXPECTED_OUTPUT="test/merged.asc"
@@ -10,7 +16,7 @@ run_merge_test() {
     mkdir -p "$(dirname "$TEMP_OUTPUT")"
 
     echo "Running merge test..."
-    go run main.go merge -input_dir "$INPUT_DIR" > "$TEMP_OUTPUT"
+    ./asctools merge -input_dir "$INPUT_DIR" > "$TEMP_OUTPUT"
 
     echo "Comparing merged files..."
     if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
@@ -31,7 +37,7 @@ run_split_test() {
     mkdir -p "$TEMP_OUTPUT_DIR"
 
     echo "Running split test..."
-    cat "$INPUT_FILE" | go run main.go split -nrows 2 -ncols 2 -output_dir "$TEMP_OUTPUT_DIR"
+    ./asctools split -nrows 2 -ncols 2 -output_dir "$TEMP_OUTPUT_DIR" < "$INPUT_FILE" 
 
     echo "Comparing split directories..."
     if diff -r -q "$TEMP_OUTPUT_DIR" "$EXPECTED_OUTPUT_DIR"; then
@@ -51,7 +57,7 @@ run_asc2png_test() {
     mkdir -p "$(dirname "$TEMP_OUTPUT")"
 
     echo "Running asc2png test..."
-    cat "$INPUT_FILE" | go run main.go asc2png -scale 100 > "$TEMP_OUTPUT"
+    ./asctools asc2png -scale 100 < "$INPUT_FILE" > "$TEMP_OUTPUT"
 
     echo "Comparing asc2png output files..."
     if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
@@ -72,7 +78,7 @@ run_asc2stl_test() {
     mkdir -p "$(dirname "$TEMP_OUTPUT")"
 
     echo "Running asc2stl test..."
-    cat "$INPUT_FILE" | go run main.go asc2stl -scale 100 > "$TEMP_OUTPUT"
+    ./asctools asc2stl -scale 100 < "$INPUT_FILE" > "$TEMP_OUTPUT"
 
     echo "Comparing asc2stl output files..."
     if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
@@ -93,7 +99,7 @@ run_crop_test() {
     mkdir -p "$(dirname "$TEMP_OUTPUT")"
 
     echo "Running crop test..."
-    cat "$INPUT_FILE" | go run main.go crop -start_x 2 -start_y 2 -end_x 3 -end_y 3 > "$TEMP_OUTPUT"
+    ./asctools crop -start_x 2 -start_y 2 -end_x 3 -end_y 3 < "$INPUT_FILE" > "$TEMP_OUTPUT"
 
     echo "Comparing crop output files..."
     if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
@@ -105,7 +111,6 @@ run_crop_test() {
         return 1
     fi
 }
-
 
 run_merge_test
 run_split_test
