@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	asctools "asctools/internal"
 	"os"
+
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func Downscale(args []string) {

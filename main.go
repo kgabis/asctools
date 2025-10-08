@@ -1,9 +1,10 @@
 package main
 
 import (
-	"asctools/cmd"
 	"fmt"
 	"os"
+
+	cmd "github.com/kgabis/asctools/cmd"
 )
 
 func main() {

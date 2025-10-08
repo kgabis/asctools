@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	asctools "asctools/internal"
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func Split(args []string) {

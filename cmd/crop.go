@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	asctools "asctools/internal"
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func Crop(args []string) {

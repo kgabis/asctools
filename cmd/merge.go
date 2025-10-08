@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	asctools "asctools/internal"
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func Merge(args []string) {

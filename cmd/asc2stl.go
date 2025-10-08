@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	asctools "asctools/internal"
 	"bufio"
 	"flag"
 	"fmt"
 	"os"
+
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func Asc2Stl(args []string) {

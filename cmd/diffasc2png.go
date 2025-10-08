@@ -7,9 +7,10 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	asctools "asctools/internal"
 	"math"
 	"os"
+
+	asctools "github.com/kgabis/asctools/internal"
 )
 
 func DiffAsc2Png(args []string) {
