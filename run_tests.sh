@@ -3,7 +3,7 @@
 set -e
 
 echo "Building asctools..."
-go build -o asctools
+go build -o ./asctools ./cmd
 
 echo "Cleaning temp directory"
 rm -rf test/temp

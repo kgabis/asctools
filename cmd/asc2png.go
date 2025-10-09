@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"bufio"
@@ -10,7 +10,7 @@ import (
 	"math"
 	"os"
 
-	asctools "github.com/kgabis/asctools/internal"
+	asctools "github.com/kgabis/asctools/pkg"
 
 	"golang.org/x/image/draw"
 )

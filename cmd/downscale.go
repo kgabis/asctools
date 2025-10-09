@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"bufio"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	asctools "github.com/kgabis/asctools/internal"
+	asctools "github.com/kgabis/asctools/pkg"
 )
 
 func Downscale(args []string) {

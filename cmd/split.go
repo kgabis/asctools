@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	asctools "github.com/kgabis/asctools/internal"
+	asctools "github.com/kgabis/asctools/pkg"
 )
 
 func Split(args []string) {

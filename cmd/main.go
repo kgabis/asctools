@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-
-	cmd "github.com/kgabis/asctools/cmd"
 )
 
 func main() {
@@ -14,21 +12,21 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "asc2png":
-		cmd.Asc2Png(os.Args[2:])
+		Asc2Png(os.Args[2:])
 	case "crop":
-		cmd.Crop(os.Args[2:])
+		Crop(os.Args[2:])
 	case "diffasc2png":
-		cmd.DiffAsc2Png(os.Args[2:])
+		DiffAsc2Png(os.Args[2:])
 	case "merge":
-		cmd.Merge(os.Args[2:])
+		Merge(os.Args[2:])
 	case "split":
-		cmd.Split(os.Args[2:])
+		Split(os.Args[2:])
 	case "asc2stl":
-		cmd.Asc2Stl(os.Args[2:])
+		Asc2Stl(os.Args[2:])
 	case "denoise":
-		cmd.Denoise(os.Args[2:])
+		Denoise(os.Args[2:])
 	case "downscale":
-		cmd.Downscale(os.Args[2:])
+		Downscale(os.Args[2:])
 	default:
 		fmt.Println("Unknown command")
 	}

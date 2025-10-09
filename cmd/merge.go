@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	asctools "github.com/kgabis/asctools/internal"
+	asctools "github.com/kgabis/asctools/pkg"
 )
 
 func Merge(args []string) {
