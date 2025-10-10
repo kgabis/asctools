@@ -33,7 +33,7 @@ func (elevationMap *ElevationMap) WriteSTL(writer *bufio.Writer, floorElevation 
 		byte(numTriangles >> 24),
 	})
 
-	for _, t := range triangles {
+	for i, t := range triangles {
 		writeFloat32(writer, float32(t.Normal.X))
 		writeFloat32(writer, float32(t.Normal.Y))
 		writeFloat32(writer, float32(t.Normal.Z))
@@ -51,6 +51,10 @@ func (elevationMap *ElevationMap) WriteSTL(writer *bufio.Writer, floorElevation 
 		writeFloat32(writer, float32(t.Vertex3.Z))
 
 		writer.Write([]byte{0, 0})
+
+		if i%1000 == 0 {
+			writer.Flush()
+		}
 	}
 
 	return writer.Flush()
