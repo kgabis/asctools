@@ -21,9 +21,14 @@ func Asc2Png(args []string) {
 	fs.BoolVar(&absoluteElevation, "absolute_elevation", false, "If true, encode raw (unscaled) elevation values in the PNG output")
 
 	var scale float64
-	fs.Float64Var(&scale, "scale", 1.0, "Scale factor for the result (must be greater than 0)")
+	fs.Float64Var(&scale, "scale", 1.0, "Scale factor for the result (must be greater than 1)")
 
 	fs.Parse(args)
+
+	if scale <= 1 {
+		fmt.Fprintln(os.Stderr, "Error: scale must be greater than 1")
+		os.Exit(1)
+	}
 
 	reader := bufio.NewReader(os.Stdin)
 	elevationMap, err := asctools.ParseASCFile(reader)

@@ -484,8 +484,12 @@ func calculateMedian(values []float64) float64 {
 }
 
 func (elevationMap *ElevationMap) Downscale(factor int) (*ElevationMap, error) {
-	if factor <= 1 {
-		return nil, fmt.Errorf("downscale factor must be greater than 1")
+	if factor < 1 {
+		return nil, fmt.Errorf("downscale factor must be greater than or equal 1")
+	}
+
+	if factor == 1 {
+		return elevationMap, nil
 	}
 
 	newMap := makeElevationMap(elevationMap.MinX, elevationMap.MinY, elevationMap.MaxX, elevationMap.MaxY, elevationMap.CellSize*float64(factor))
