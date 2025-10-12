@@ -15,6 +15,9 @@ func Asc2Png(args []string) {
 	var scale float64
 	fs.Float64Var(&scale, "scale", 1.0, "Scale factor for the result (must be greater than 1)")
 
+	var scalingOperationVal string
+	fs.StringVar(&scalingOperationVal, "scaling_operation", "none", "Scaling operation: 'up' to scale up, 'down' to downscale")
+
 	fs.Parse(args)
 
 	if scale < 1 {
@@ -29,7 +32,19 @@ func Asc2Png(args []string) {
 		os.Exit(1)
 	}
 
-	err = elevationMap.WritePNG(bufio.NewWriter(os.Stdout), int(scale))
+	var scalingOperation asctools.ScalingOperation
+	switch scalingOperationVal {
+	case "up":
+		scalingOperation = asctools.ScaleUp
+	case "down":
+		scalingOperation = asctools.ScaleDown
+	case "none":
+		scalingOperation = asctools.ScaleNone
+	default:
+		scalingOperation = asctools.ScaleNone
+	}
+
+	err = elevationMap.WritePNG(bufio.NewWriter(os.Stdout), scalingOperation, int(scale))
 	if err != nil {
 		fmt.Println("Error rendering map to bitmap:", err)
 		os.Exit(1)

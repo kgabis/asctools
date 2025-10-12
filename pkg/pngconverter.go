@@ -11,39 +11,31 @@ import (
 	"golang.org/x/image/draw"
 )
 
-func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, downscaleFactor int) error {
-	img, err := elevationMap.renderToImage()
-	if err != nil {
-		return err
-	}
-	if downscaleFactor != 1.0 {
-		newWidth := int(float64(img.Bounds().Dx()) * float64(downscaleFactor))
-		newHeight := int(float64(img.Bounds().Dy()) * float64(downscaleFactor))
-		scaledImg := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
-		draw.NearestNeighbor.Scale(scaledImg, scaledImg.Bounds(), img, img.Bounds(), draw.Over, nil)
-		img = scaledImg
-	}
+type ScalingOperation int
 
-	err = png.Encode(writer, img)
-	if err != nil {
-		fmt.Printf("Error encoding PNG: %v\n", err)
-		return err
-	}
-	return writer.Flush()
-}
+const (
+	ScaleNone ScalingOperation = iota
+	ScaleDown
+	ScaleUp
+)
 
-func (elevationMap *ElevationMap) renderToImage() (image.Image, error) {
+func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, scalingOperation ScalingOperation, scale int) error {
 	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
 	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
 	img := image.NewGray16(image.Rect(0, 0, imgWidth, imgHeight))
 
 	elevationRange := elevationMap.MaxElevation - elevationMap.MinElevation
 
-	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize {
-		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize {
+	scaleStep := 1
+	if scalingOperation == ScaleDown && scale > 1 {
+		scaleStep = scale
+	}
+
+	imgY := (imgHeight - 1) / scaleStep
+	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize * float64(scaleStep) {
+		imgX := 0
+		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize * float64(scaleStep) {
 			elevation := elevationMap.GetElevation(elevationMap.MinX+x, elevationMap.MinY+y)
-			imgX := int(x / elevationMap.CellSize)
-			imgY := imgHeight - 1 - int(y/elevationMap.CellSize)
 			if elevation == NodataValue {
 				img.SetGray16(imgX, imgY, color.Gray16{Y: 0})
 			} else {
@@ -51,8 +43,23 @@ func (elevationMap *ElevationMap) renderToImage() (image.Image, error) {
 				grayValue := uint16(normalized * math.MaxUint16)
 				img.SetGray16(imgX, imgY, color.Gray16{Y: grayValue})
 			}
+			imgX++
 		}
+		imgY--
 	}
 
-	return img, nil
+	if scalingOperation == ScaleUp && scale > 1 {
+		newWidth := int(float64(img.Bounds().Dx()) * float64(scale))
+		newHeight := int(float64(img.Bounds().Dy()) * float64(scale))
+		scaledImg := image.NewGray16(image.Rect(0, 0, newWidth, newHeight))
+		draw.NearestNeighbor.Scale(scaledImg, scaledImg.Bounds(), img, img.Bounds(), draw.Over, nil)
+		img = scaledImg
+	}
+
+	err := png.Encode(writer, img)
+	if err != nil {
+		fmt.Printf("Error encoding PNG: %v\n", err)
+		return err
+	}
+	return writer.Flush()
 }

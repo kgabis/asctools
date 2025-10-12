@@ -57,7 +57,7 @@ run_asc2png_test() {
     mkdir -p "$(dirname "$TEMP_OUTPUT")"
 
     echo "Running asc2png test..."
-    ./asctools asc2png -scale 100 < "$INPUT_FILE" > "$TEMP_OUTPUT"
+    ./asctools asc2png -scaling_operation up -scale 100 < "$INPUT_FILE" > "$TEMP_OUTPUT"
 
     echo "Comparing asc2png output files..."
     if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
