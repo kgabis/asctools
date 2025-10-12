@@ -11,7 +11,7 @@ import (
 	"golang.org/x/image/draw"
 )
 
-func (elevationMap *ElevationMap) WriteToPNG(writer *bufio.Writer, downscaleFactor int) error {
+func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, downscaleFactor int) error {
 	img, err := elevationMap.renderToImage()
 	if err != nil {
 		return err
