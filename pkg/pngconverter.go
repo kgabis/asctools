@@ -20,16 +20,20 @@ const (
 )
 
 func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, scalingOperation ScalingOperation, scale int) error {
-	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
-	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
-	img := image.NewGray16(image.Rect(0, 0, imgWidth, imgHeight))
-
-	elevationRange := elevationMap.MaxElevation - elevationMap.MinElevation
-
 	scaleStep := 1
 	if scalingOperation == ScaleDown && scale > 1 {
 		scaleStep = scale
 	}
+	imgWidth := int(elevationMap.GetWidth() / elevationMap.CellSize)
+	imgHeight := int(elevationMap.GetHeight() / elevationMap.CellSize)
+
+	if scalingOperation == ScaleDown && scale > 1 {
+		imgWidth = imgWidth / scale
+		imgHeight = imgHeight / scale
+	}
+	img := image.NewGray16(image.Rect(0, 0, imgWidth, imgHeight))
+
+	elevationRange := elevationMap.MaxElevation - elevationMap.MinElevation
 
 	imgY := (imgHeight - 1) / scaleStep
 	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize * float64(scaleStep) {
