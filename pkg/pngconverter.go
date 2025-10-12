@@ -35,7 +35,7 @@ func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, scalingOperatio
 
 	elevationRange := elevationMap.MaxElevation - elevationMap.MinElevation
 
-	imgY := (imgHeight - 1) / scaleStep
+	imgY := imgHeight - 1
 	for y := 0.0; y < elevationMap.GetHeight(); y += elevationMap.CellSize * float64(scaleStep) {
 		imgX := 0
 		for x := 0.0; x < elevationMap.GetWidth(); x += elevationMap.CellSize * float64(scaleStep) {
