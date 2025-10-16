@@ -2,7 +2,11 @@ package asctools
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -10,6 +14,10 @@ import (
 )
 
 const NodataValue = -9999.0
+
+type compressedRow struct {
+	data []byte
+}
 
 type ElevationMap struct {
 	NumRows      int
@@ -19,33 +27,45 @@ type ElevationMap struct {
 	MaxX         float64
 	MinY         float64
 	MaxY         float64
-	Data         [][]float64
+	Data         []compressedRow
 	MinElevation float64
 	MaxElevation float64
+
+	currentRowData  []float64
+	currentRowIndex int
 }
 
 func makeElevationMap(minX, minY, maxX, maxY, cellSize float64) *ElevationMap {
 	numRows := int((maxY - minY) / cellSize)
 	numCols := int((maxX - minX) / cellSize)
-	data := make([][]float64, numRows)
+	data := make([]compressedRow, numRows)
+
 	for i := range data {
-		data[i] = make([]float64, numCols)
-		for j := range data[i] {
-			data[i][j] = NodataValue
+		rowData := make([]float64, numCols)
+		for j := range rowData {
+			rowData[j] = NodataValue
 		}
+		data[i] = compressRow(rowData)
+	}
+
+	currentRowData := make([]float64, numCols)
+	for j := range currentRowData {
+		currentRowData[j] = NodataValue
 	}
 
 	return &ElevationMap{
-		NumRows:      numRows,
-		NumCols:      numCols,
-		CellSize:     cellSize,
-		MinX:         minX,
-		MaxX:         maxX,
-		MinY:         minY,
-		MaxY:         maxY,
-		Data:         data,
-		MinElevation: math.MaxFloat64,
-		MaxElevation: -math.MaxFloat64,
+		NumRows:         numRows,
+		NumCols:         numCols,
+		CellSize:        cellSize,
+		MinX:            minX,
+		MaxX:            maxX,
+		MinY:            minY,
+		MaxY:            maxY,
+		Data:            data,
+		MinElevation:    math.MaxFloat64,
+		MaxElevation:    -math.MaxFloat64,
+		currentRowIndex: 0,
+		currentRowData:  currentRowData,
 	}
 }
 
@@ -81,9 +101,6 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 	merged := makeElevationMap(minX, minY, maxX, maxY, cellSize)
 
 	for _, m := range maps {
-		if m.NumRows != len(m.Data) || m.NumCols != len(m.Data[0]) {
-			return nil, fmt.Errorf("map dimensions do not match data size")
-		}
 		for y := m.MinY; y < m.MaxY; y += m.CellSize {
 			for x := m.MinX; x < m.MaxX; x += m.CellSize {
 				value := m.GetElevation(x, y)
@@ -100,41 +117,45 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 }
 
 func (elevationMap *ElevationMap) fixHoles() {
-	newData := make([][]float64, elevationMap.NumRows)
-	for i := range newData {
-		newData[i] = make([]float64, elevationMap.NumCols)
-		copy(newData[i], elevationMap.Data[i])
-	}
+	fixedHolesMap := makeElevationMap(elevationMap.MinX, elevationMap.MinY, elevationMap.MaxX, elevationMap.MaxY, elevationMap.CellSize)
 
-	for y := 1; y < elevationMap.NumRows-1; y++ {
-		for x := 1; x < elevationMap.NumCols-1; x++ {
-			if elevationMap.Data[y][x] != NodataValue {
+	for row := 0; row < elevationMap.NumRows; row++ {
+		for col := 0; col < elevationMap.NumCols; col++ {
+			val := elevationMap.GetRowCol(row, col)
+			if val != NodataValue {
+				fixedHolesMap.SetRowCol(row, col, val)
 				continue
 			}
-			above := elevationMap.Data[y-1][x]
-			if above != NodataValue {
-				newData[y][x] = above
+			if row == 0 || row == elevationMap.NumRows-1 || col == 0 || col == elevationMap.NumCols-1 {
 				continue
 			}
-			below := elevationMap.Data[y+1][x]
-			if below != NodataValue {
-				newData[y][x] = below
-				continue
-			}
-			left := elevationMap.Data[y][x-1]
+			left := elevationMap.GetRowCol(row, col-1)
 			if left != NodataValue {
-				newData[y][x] = left
+				fixedHolesMap.SetRowCol(row, col, left)
 				continue
 			}
-			right := elevationMap.Data[y][x+1]
+			right := elevationMap.GetRowCol(row, col+1)
 			if right != NodataValue {
-				newData[y][x] = right
+				fixedHolesMap.SetRowCol(row, col, right)
 				continue
 			}
+			above := elevationMap.GetRowCol(row-1, col)
+			if above != NodataValue {
+				fixedHolesMap.SetRowCol(row, col, above)
+				continue
+			}
+			below := elevationMap.GetRowCol(row+1, col)
+			if below != NodataValue {
+				fixedHolesMap.SetRowCol(row, col, below)
+				continue
+			}
+
 		}
 	}
 
-	elevationMap.Data = newData
+	elevationMap.Data = fixedHolesMap.Data
+	elevationMap.currentRowData = fixedHolesMap.currentRowData
+	elevationMap.currentRowIndex = fixedHolesMap.currentRowIndex
 }
 
 func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
@@ -197,19 +218,12 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 			if val == mapNodataValue {
 				val = NodataValue
 			}
-			elevationMap.Data[row][col] = val
-		}
-	}
-
-	for _, row := range elevationMap.Data {
-		for _, value := range row {
-			if value != mapNodataValue {
-				if value < elevationMap.MinElevation {
-					elevationMap.MinElevation = value
-				}
-				if value > elevationMap.MaxElevation {
-					elevationMap.MaxElevation = value
-				}
+			elevationMap.SetRowCol(row, col, val)
+			if val < elevationMap.MinElevation {
+				elevationMap.MinElevation = val
+			}
+			if val > elevationMap.MaxElevation {
+				elevationMap.MaxElevation = val
 			}
 		}
 	}
@@ -235,9 +249,10 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 		return fmt.Errorf("failed to write header: %v", err)
 	}
 
-	for _, row := range elevationMap.Data {
-		values := make([]string, len(row))
-		for j, v := range row {
+	for rowIx, _ := range elevationMap.Data {
+		values := make([]string, elevationMap.NumCols)
+		for j := 0; j < elevationMap.NumCols; j++ {
+			v := elevationMap.GetRowCol(rowIx, j)
 			values[j] = strconv.FormatFloat(v, 'f', -1, 64)
 		}
 		line := strings.Join(values, " ") + "\n"
@@ -255,9 +270,9 @@ func (elevationMap *ElevationMap) GetElevation(x float64, y float64) float64 {
 		mapX := x - elevationMap.MinX
 		row := int(mapY / elevationMap.CellSize)
 		col := int(mapX / elevationMap.CellSize)
-		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
+		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < elevationMap.NumCols {
 			realRow := len(elevationMap.Data) - 1 - row
-			value := elevationMap.Data[realRow][col]
+			value := elevationMap.GetRowCol(realRow, col)
 			return value
 		}
 	}
@@ -271,9 +286,9 @@ func (elevationMap *ElevationMap) SetElevation(x float64, y float64, value float
 		mapX := x - elevationMap.MinX
 		row := int(mapY / elevationMap.CellSize)
 		col := int(mapX / elevationMap.CellSize)
-		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < len(elevationMap.Data[row]) {
+		if row >= 0 && row < len(elevationMap.Data) && col >= 0 && col < elevationMap.NumCols {
 			realRow := len(elevationMap.Data) - 1 - row
-			elevationMap.Data[realRow][col] = value
+			elevationMap.SetRowCol(realRow, col, value)
 			if value != NodataValue {
 				if value < elevationMap.MinElevation {
 					elevationMap.MinElevation = value
@@ -284,6 +299,47 @@ func (elevationMap *ElevationMap) SetElevation(x float64, y float64, value float
 			}
 		}
 	}
+}
+
+func (elevationMap *ElevationMap) GetRowCol(row int, col int) float64 {
+	if col < 0 || col >= elevationMap.NumCols || row < 0 || row >= elevationMap.NumRows {
+		return NodataValue
+	}
+
+	if row == elevationMap.currentRowIndex {
+		return elevationMap.currentRowData[col]
+	}
+
+	elevationMap.Data[elevationMap.currentRowIndex] = compressRow(elevationMap.currentRowData)
+
+	currentRowData, err := decompressRow(elevationMap.Data[row], elevationMap.NumCols)
+	if err != nil {
+		return NodataValue
+	}
+	elevationMap.currentRowIndex = row
+	elevationMap.currentRowData = currentRowData
+	return elevationMap.currentRowData[col]
+}
+
+func (elevationMap *ElevationMap) SetRowCol(row int, col int, val float64) {
+	if col < 0 || col >= elevationMap.NumCols || row < 0 || row >= elevationMap.NumRows {
+		return
+	}
+	if row == elevationMap.currentRowIndex {
+		elevationMap.currentRowData[col] = val
+		return
+	}
+	elevationMap.Data[elevationMap.currentRowIndex] = compressRow(elevationMap.currentRowData)
+	currentRowData, err := decompressRow(elevationMap.Data[row], elevationMap.NumCols)
+	if err != nil {
+		return
+	}
+	elevationMap.currentRowIndex = row
+	elevationMap.currentRowData = currentRowData
+	if len(elevationMap.currentRowData) < col {
+		return
+	}
+	elevationMap.currentRowData[col] = val
 }
 
 func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool) ([][]*ElevationMap, error) {
@@ -518,4 +574,95 @@ func (elevationMap *ElevationMap) Downscale(factor int) (*ElevationMap, error) {
 	}
 
 	return newMap, nil
+}
+
+func compressRow(data []float64) compressedRow {
+	if len(data) == 0 {
+		return compressedRow{data: []byte{}}
+	}
+	serialized, err := serializeFloatsBinary(data)
+	if err != nil {
+		return compressedRow{data: []byte{}}
+	}
+	compressed, err := compress(serialized)
+	if err != nil {
+		return compressedRow{data: []byte{}}
+	}
+	return compressedRow{
+		data: compressed,
+	}
+}
+
+func decompressRow(row compressedRow, numCols int) ([]float64, error) {
+	if len(row.data) == 0 {
+		return make([]float64, numCols), nil
+	}
+	decompressed, err := decompress(row.data)
+	if err != nil {
+		return nil, err
+	}
+	floats, err := deserializeFloatsBinary(decompressed)
+	if err != nil {
+		return nil, err
+	}
+	if len(floats) != numCols {
+		return nil, fmt.Errorf("decompressed row length mismatch")
+	}
+	return floats, nil
+}
+
+func compress(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// decompress uses gzip to get back original bytes
+func decompress(compressed []byte) ([]byte, error) {
+	buf := bytes.NewReader(compressed)
+	gz, err := gzip.NewReader(buf)
+	if err != nil {
+		return nil, err
+	}
+	defer gz.Close()
+	var out bytes.Buffer
+	if _, err := io.Copy(&out, gz); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+func serializeFloatsBinary(arr []float64) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	for _, v := range arr {
+		// write each float64 (8 bytes)
+		if err := binary.Write(buf, binary.LittleEndian, v); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+// deserializeFloatsBinary reads []float64 from bytes (assuming little endian)
+func deserializeFloatsBinary(data []byte) ([]float64, error) {
+	buf := bytes.NewReader(data)
+	var arr []float64
+	for {
+		var v float64
+		err := binary.Read(buf, binary.LittleEndian, &v)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		arr = append(arr, v)
+	}
+	return arr, nil
 }
