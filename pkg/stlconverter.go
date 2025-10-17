@@ -89,7 +89,7 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 
 	epsilon := 0.0001
 
-	for row := 0; row < len(elevationMap.Data)-1; row++ {
+	for row := 0; row < elevationMap.NumRows-1; row++ {
 		for col := 0; col < elevationMap.NumCols-1; col++ {
 			e1 := elevationMap.GetRowCol(row, col)
 			e2 := elevationMap.GetRowCol(row, col+1)
@@ -162,7 +162,7 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				writeWall(v2, v1, writeTriangle)
 			}
 
-			if (e3 >= 0 && (row == len(elevationMap.Data)-2 || elevationMap.GetRowCol(row+2, col) < floorElevation)) && (e4 >= 0) && (row == len(elevationMap.Data)-2 || elevationMap.GetRowCol(row+2, col+1) < floorElevation) {
+			if (e3 >= 0 && (row == elevationMap.NumRows-2 || elevationMap.GetRowCol(row+2, col) < floorElevation)) && (e4 >= 0) && (row == elevationMap.NumRows-2 || elevationMap.GetRowCol(row+2, col+1) < floorElevation) {
 				writeWall(v3, v4, writeTriangle)
 			}
 
