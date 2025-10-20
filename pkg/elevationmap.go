@@ -92,7 +92,7 @@ func MergeMaps(maps []*ElevationMap) (*ElevationMap, error) {
 		}
 	}
 
-	// merged.fixHoles()
+	merged.fixHoles()
 
 	return merged, nil
 }
@@ -196,14 +196,15 @@ func ParseASCFile(reader *bufio.Reader) (*ElevationMap, error) {
 			val, _ := strconv.ParseFloat(rawVal, 64)
 			if val == mapNodataValue {
 				val = NodataValue
+			} else {
+				if val < elevationMap.MinElevation {
+					elevationMap.MinElevation = val
+				}
+				if val > elevationMap.MaxElevation {
+					elevationMap.MaxElevation = val
+				}
 			}
 			elevationMap.SetRowCol(row, col, val)
-			if val < elevationMap.MinElevation {
-				elevationMap.MinElevation = val
-			}
-			if val > elevationMap.MaxElevation {
-				elevationMap.MaxElevation = val
-			}
 		}
 	}
 
