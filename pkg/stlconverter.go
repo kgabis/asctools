@@ -7,7 +7,7 @@ import (
 )
 
 type Vector3 struct {
-	X, Y, Z float64
+	X, Y, Z float32
 }
 
 type Triangle struct {
@@ -33,21 +33,21 @@ func (elevationMap *ElevationMap) WriteSTL(writer *bufio.Writer, floorElevation 
 	})
 
 	writeTriangle := func(t Triangle) {
-		writeFloat32(writer, float32(t.Normal.X))
-		writeFloat32(writer, float32(t.Normal.Y))
-		writeFloat32(writer, float32(t.Normal.Z))
+		writeFloat32(writer, t.Normal.X)
+		writeFloat32(writer, t.Normal.Y)
+		writeFloat32(writer, t.Normal.Z)
 
-		writeFloat32(writer, float32(t.Vertex1.X))
-		writeFloat32(writer, float32(t.Vertex1.Y))
-		writeFloat32(writer, float32(t.Vertex1.Z))
+		writeFloat32(writer, t.Vertex1.X)
+		writeFloat32(writer, t.Vertex1.Y)
+		writeFloat32(writer, t.Vertex1.Z)
 
-		writeFloat32(writer, float32(t.Vertex2.X))
-		writeFloat32(writer, float32(t.Vertex2.Y))
-		writeFloat32(writer, float32(t.Vertex2.Z))
+		writeFloat32(writer, t.Vertex2.X)
+		writeFloat32(writer, t.Vertex2.Y)
+		writeFloat32(writer, t.Vertex2.Z)
 
-		writeFloat32(writer, float32(t.Vertex3.X))
-		writeFloat32(writer, float32(t.Vertex3.Y))
-		writeFloat32(writer, float32(t.Vertex3.Z))
+		writeFloat32(writer, t.Vertex3.X)
+		writeFloat32(writer, t.Vertex3.Y)
+		writeFloat32(writer, t.Vertex3.Z)
 
 		writer.Write([]byte{0, 0})
 	}
@@ -80,21 +80,22 @@ func countTriangles(elevationMap *ElevationMap) int {
 
 func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float64, writeTriangle func(Triangle)) {
 	corner1 := Vector3{0, 0, 0}
-	corner2 := Vector3{elevationMap.GetWidth(), 0, 0}
-	corner3 := Vector3{0, elevationMap.GetHeight(), 0}
-	corner4 := Vector3{elevationMap.GetWidth(), elevationMap.GetHeight(), 0}
+	corner2 := Vector3{float32(elevationMap.GetWidth()), 0, 0}
+	corner3 := Vector3{0, float32(elevationMap.GetHeight()), 0}
+	corner4 := Vector3{float32(elevationMap.GetWidth()), float32(elevationMap.GetHeight()), 0}
 
 	writeTriangle(makeTriangle(corner1, corner3, corner2))
 	writeTriangle(makeTriangle(corner2, corner3, corner4))
 
 	epsilon := 0.0001
 
-	for row := 0; row < elevationMap.NumRows-1; row++ {
-		for col := 0; col < elevationMap.NumCols-1; col++ {
-			e1 := elevationMap.GetRowCol(row, col)
-			e2 := elevationMap.GetRowCol(row, col+1)
-			e3 := elevationMap.GetRowCol(row+1, col)
-			e4 := elevationMap.GetRowCol(row+1, col+1)
+	step := elevationMap.CellSize
+	for y := 0.0; y < elevationMap.GetHeight()-step; y += step {
+		for x := 0.0; x < elevationMap.GetWidth()-step; x += step {
+			e1 := elevationMap.GetElevation(x, y)
+			e2 := elevationMap.GetElevation(x+step, y)
+			e3 := elevationMap.GetElevation(x, y+step)
+			e4 := elevationMap.GetElevation(x+step, y+step)
 
 			if e1 == NodataValue {
 				e1 = floorElevation + epsilon
@@ -120,19 +121,10 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				e4 -= floorElevation
 			}
 
-			v1 := Vector3{float64(col), float64(row), e1}
-			v2 := Vector3{float64(col + 1), float64(row), e2}
-			v3 := Vector3{float64(col), float64(row + 1), e3}
-			v4 := Vector3{float64(col + 1), float64(row + 1), e4}
-
-			v1.X *= elevationMap.CellSize
-			v1.Y *= elevationMap.CellSize
-			v2.X *= elevationMap.CellSize
-			v2.Y *= elevationMap.CellSize
-			v3.X *= elevationMap.CellSize
-			v3.Y *= elevationMap.CellSize
-			v4.X *= elevationMap.CellSize
-			v4.Y *= elevationMap.CellSize
+			v1 := Vector3{float32(x), float32(y), float32(e1)}
+			v2 := Vector3{float32(x + step), float32(y), float32(e2)}
+			v3 := Vector3{float32(x), float32(y + step), float32(e3)}
+			v4 := Vector3{float32(x + step), float32(y + step), float32(e4)}
 
 			if e3 < 0 || e2 < 0 {
 				if v1.Z >= 0 && v4.Z >= 0 && v3.Z >= 0 {
@@ -150,19 +142,23 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				}
 			}
 
-			if (e1 >= 0 && (col == 0 || elevationMap.GetRowCol(row, col-1) < floorElevation)) && (e3 >= 0) && (col == 0 || elevationMap.GetRowCol(row+1, col-1) < floorElevation) {
+			isFirstRow := areFloatsEqual(y, 0.0)
+			isLastRow := areFloatsEqual(y, elevationMap.GetHeight()-2*step)
+			isFirstCol := areFloatsEqual(x, 0.0)
+			isLastCol := areFloatsEqual(x, elevationMap.GetWidth()-2*step)
+			if (e1 >= 0 && (isFirstCol || elevationMap.GetElevation(x, y-step) < floorElevation)) && (e3 >= 0) && (isFirstCol || elevationMap.GetElevation(y+step, x-step) < floorElevation) {
 				writeWall(v1, v3, writeTriangle)
 			}
 
-			if (e2 >= 0 && (col == elevationMap.NumCols-2 || elevationMap.GetRowCol(row, col+2) < floorElevation)) && (e4 >= 0) && (col == elevationMap.NumCols-2 || elevationMap.GetRowCol(row+1, col+2) < floorElevation) {
+			if (e2 >= 0 && (isLastCol || elevationMap.GetElevation(x+2*step, y) < floorElevation)) && (e4 >= 0) && (isLastCol || elevationMap.GetElevation(x+2*step, y+step) < floorElevation) {
 				writeWall(v4, v2, writeTriangle)
 			}
 
-			if (e1 >= 0 && (row == 0 || elevationMap.GetRowCol(row-1, col) < floorElevation)) && (e2 >= 0) && (row == 0 || elevationMap.GetRowCol(row-1, col+1) < floorElevation) {
+			if (e1 >= 0 && (isFirstRow || elevationMap.GetElevation(x, y-step) < floorElevation)) && (e2 >= 0) && (isFirstRow || elevationMap.GetElevation(x+step, y-step) < floorElevation) {
 				writeWall(v2, v1, writeTriangle)
 			}
 
-			if (e3 >= 0 && (row == elevationMap.NumRows-2 || elevationMap.GetRowCol(row+2, col) < floorElevation)) && (e4 >= 0) && (row == elevationMap.NumRows-2 || elevationMap.GetRowCol(row+2, col+1) < floorElevation) {
+			if (e3 >= 0 && (isLastRow || elevationMap.GetElevation(x, y+2*step) < floorElevation)) && (e4 >= 0) && (isLastRow || elevationMap.GetElevation(x+step, y+2*step) < floorElevation) {
 				writeWall(v3, v4, writeTriangle)
 			}
 
@@ -221,7 +217,7 @@ func calculateNormal(p1, p2, p3 Vector3) Vector3 {
 		Z: edge1.X*edge2.Y - edge1.Y*edge2.X,
 	}
 
-	length := math.Sqrt(float64(normal.X*normal.X + normal.Y*normal.Y + normal.Z*normal.Z))
+	length := float32(math.Sqrt(float64(normal.X*normal.X + normal.Y*normal.Y + normal.Z*normal.Z)))
 
 	if length > 0 {
 		normal.X /= length
@@ -230,4 +226,9 @@ func calculateNormal(p1, p2, p3 Vector3) Vector3 {
 	}
 
 	return normal
+}
+
+func areFloatsEqual(a, b float64) bool {
+	epsilon := 0.0001
+	return math.Abs(a-b) < epsilon
 }

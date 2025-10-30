@@ -9,9 +9,6 @@ import (
 	"strings"
 )
 
-// const MaxWorldElevation = 9000.0
-// const MinWorldElevation = -200.0
-// const NodataHexValue = 0
 const NodataValue = -9999.0
 
 type ElevationMap struct {
@@ -310,7 +307,7 @@ func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool
 		tileWidth = elevationMap.GetWidth() / float64(horTiles)
 		tileHeight = elevationMap.GetHeight() / float64(verTiles)
 
-		if tileWidth < tileHeight {
+		if tileHeight < tileWidth {
 			tileWidth = tileHeight
 		} else {
 			tileHeight = tileWidth
