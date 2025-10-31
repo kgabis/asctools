@@ -6,6 +6,8 @@ import (
 	"unsafe"
 )
 
+const epsilon = 0.0001
+
 type Vector3 struct {
 	X, Y, Z float32
 }
@@ -87,11 +89,9 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 	writeTriangle(makeTriangle(corner1, corner3, corner2))
 	writeTriangle(makeTriangle(corner2, corner3, corner4))
 
-	epsilon := 0.0001
-
 	step := elevationMap.CellSize
-	for y := 0.0; y < elevationMap.GetHeight()-step; y += step {
-		for x := 0.0; x < elevationMap.GetWidth()-step; x += step {
+	for y := elevationMap.MinY; y < (elevationMap.MaxY - step); y += step {
+		for x := elevationMap.MinX; x < (elevationMap.MaxX - step); x += step {
 			e1 := elevationMap.GetElevation(x, y)
 			e2 := elevationMap.GetElevation(x+step, y)
 			e3 := elevationMap.GetElevation(x, y+step)
@@ -121,10 +121,10 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				e4 -= floorElevation
 			}
 
-			v1 := Vector3{float32(x), float32(y), float32(e1)}
-			v2 := Vector3{float32(x + step), float32(y), float32(e2)}
-			v3 := Vector3{float32(x), float32(y + step), float32(e3)}
-			v4 := Vector3{float32(x + step), float32(y + step), float32(e4)}
+			v1 := Vector3{float32(x - elevationMap.MinX), float32(y - elevationMap.MinY), float32(e1)}
+			v2 := Vector3{float32(x + step - elevationMap.MinX), float32(y - elevationMap.MinY), float32(e2)}
+			v3 := Vector3{float32(x - elevationMap.MinX), float32(y + step - elevationMap.MinY), float32(e3)}
+			v4 := Vector3{float32(x + step - elevationMap.MinX), float32(y + step - elevationMap.MinY), float32(e4)}
 
 			if e3 < 0 || e2 < 0 {
 				if v1.Z >= 0 && v4.Z >= 0 && v3.Z >= 0 {
@@ -142,10 +142,10 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				}
 			}
 
-			isFirstRow := areFloatsEqual(y, 0.0)
-			isLastRow := areFloatsEqual(y, elevationMap.GetHeight()-2*step)
-			isFirstCol := areFloatsEqual(x, 0.0)
-			isLastCol := areFloatsEqual(x, elevationMap.GetWidth()-2*step)
+			isFirstRow := areFloatsEqual(y, elevationMap.MinY)
+			isLastRow := areFloatsEqual(y, elevationMap.MaxY-2*step)
+			isFirstCol := areFloatsEqual(x, elevationMap.MinX)
+			isLastCol := areFloatsEqual(x, elevationMap.MaxX-2*step)
 			if (e1 >= 0 && (isFirstCol || elevationMap.GetElevation(x, y-step) < floorElevation)) && (e3 >= 0) && (isFirstCol || elevationMap.GetElevation(y+step, x-step) < floorElevation) {
 				writeWall(v1, v3, writeTriangle)
 			}
@@ -229,6 +229,5 @@ func calculateNormal(p1, p2, p3 Vector3) Vector3 {
 }
 
 func areFloatsEqual(a, b float64) bool {
-	epsilon := 0.0001
 	return math.Abs(a-b) < epsilon
 }
