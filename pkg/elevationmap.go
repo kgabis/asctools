@@ -99,7 +99,7 @@ func (elevationMap *ElevationMap) fixHoles() {
 
 	for row := 0; row < elevationMap.NumRows; row++ {
 		for col := 0; col < elevationMap.NumCols; col++ {
-			val := elevationMap.GetRowCol(row, col)
+			val := elevationMap.GetRowCol(row, col, false)
 			if val != NodataValue {
 				fixedHolesMap.SetRowCol(row, col, val)
 				continue
@@ -107,22 +107,22 @@ func (elevationMap *ElevationMap) fixHoles() {
 			if row == 0 || row == elevationMap.NumRows-1 || col == 0 || col == elevationMap.NumCols-1 {
 				continue
 			}
-			left := elevationMap.GetRowCol(row, col-1)
+			left := elevationMap.GetRowCol(row, col-1, false)
 			if left != NodataValue {
 				fixedHolesMap.SetRowCol(row, col, left)
 				continue
 			}
-			right := elevationMap.GetRowCol(row, col+1)
+			right := elevationMap.GetRowCol(row, col+1, false)
 			if right != NodataValue {
 				fixedHolesMap.SetRowCol(row, col, right)
 				continue
 			}
-			above := elevationMap.GetRowCol(row-1, col)
+			above := elevationMap.GetRowCol(row-1, col, false)
 			if above != NodataValue {
 				fixedHolesMap.SetRowCol(row, col, above)
 				continue
 			}
-			below := elevationMap.GetRowCol(row+1, col)
+			below := elevationMap.GetRowCol(row+1, col, false)
 			if below != NodataValue {
 				fixedHolesMap.SetRowCol(row, col, below)
 				continue
@@ -229,7 +229,7 @@ func (elevationMap *ElevationMap) WriteASC(writer *bufio.Writer) error {
 	for rowIx := 0; rowIx < elevationMap.NumRows; rowIx++ {
 		values := make([]string, elevationMap.NumCols)
 		for j := 0; j < elevationMap.NumCols; j++ {
-			v := elevationMap.GetRowCol(rowIx, j)
+			v := elevationMap.GetRowCol(rowIx, j, false)
 			values[j] = strconv.FormatFloat(v, 'f', -1, 64)
 		}
 		line := strings.Join(values, " ") + "\n"
@@ -248,8 +248,7 @@ func (elevationMap *ElevationMap) GetElevation(x float64, y float64) float64 {
 		row := int(mapY / elevationMap.CellSize)
 		col := int(mapX / elevationMap.CellSize)
 		if row >= 0 && row < elevationMap.NumRows && col >= 0 && col < elevationMap.NumCols {
-			realRow := elevationMap.NumRows - 1 - row
-			value := elevationMap.GetRowCol(realRow, col)
+			value := elevationMap.GetRowCol(row, col, true)
 			return value
 		}
 	}
@@ -278,9 +277,12 @@ func (elevationMap *ElevationMap) SetElevation(x float64, y float64, value float
 	}
 }
 
-func (elevationMap *ElevationMap) GetRowCol(row int, col int) float64 {
+func (elevationMap *ElevationMap) GetRowCol(row int, col int, mirrorRow bool) float64 {
 	if col < 0 || col >= elevationMap.NumCols || row < 0 || row >= elevationMap.NumRows {
 		return NodataValue
+	}
+	if mirrorRow {
+		row = elevationMap.NumRows - 1 - row
 	}
 	dataIx := row*elevationMap.NumCols + col
 	val := elevationMap.Data[dataIx]
