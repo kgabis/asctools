@@ -90,12 +90,14 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 	writeTriangle(makeTriangle(corner2, corner3, corner4))
 
 	step := elevationMap.CellSize
-	for y := elevationMap.MinY; y < (elevationMap.MaxY - step); y += step {
-		for x := elevationMap.MinX; x < (elevationMap.MaxX - step); x += step {
-			e1 := elevationMap.GetElevation(x, y)
-			e2 := elevationMap.GetElevation(x+step, y)
-			e3 := elevationMap.GetElevation(x, y+step)
-			e4 := elevationMap.GetElevation(x+step, y+step)
+	for y := 0.0; y < (elevationMap.GetHeight() - step); y += step {
+		for x := 0.0; x < (elevationMap.GetWidth() - step); x += step {
+			mapX := elevationMap.MinX + x
+			mapY := elevationMap.MinY + y
+			e1 := elevationMap.GetElevation(mapX, mapY)
+			e2 := elevationMap.GetElevation(mapX+step, mapY)
+			e3 := elevationMap.GetElevation(mapX, mapY+step)
+			e4 := elevationMap.GetElevation(mapX+step, mapY+step)
 
 			if e1 == NodataValue {
 				e1 = floorElevation + epsilon
@@ -121,10 +123,10 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				e4 -= floorElevation
 			}
 
-			v1 := Vector3{float32(x - elevationMap.MinX), float32(y - elevationMap.MinY), float32(e1)}
-			v2 := Vector3{float32(x + step - elevationMap.MinX), float32(y - elevationMap.MinY), float32(e2)}
-			v3 := Vector3{float32(x - elevationMap.MinX), float32(y + step - elevationMap.MinY), float32(e3)}
-			v4 := Vector3{float32(x + step - elevationMap.MinX), float32(y + step - elevationMap.MinY), float32(e4)}
+			v1 := Vector3{float32(x), float32(y), float32(e1)}
+			v2 := Vector3{float32(x + step), float32(y), float32(e2)}
+			v3 := Vector3{float32(x), float32(y + step), float32(e3)}
+			v4 := Vector3{float32(x + step), float32(y + step), float32(e4)}
 
 			if e3 < 0 || e2 < 0 {
 				if v1.Z >= 0 && v4.Z >= 0 && v3.Z >= 0 {
@@ -142,23 +144,24 @@ func generateAndWriteTriangles(elevationMap *ElevationMap, floorElevation float6
 				}
 			}
 
-			isFirstRow := areFloatsEqual(y, elevationMap.MinY)
-			isLastRow := areFloatsEqual(y, elevationMap.MaxY-2*step)
-			isFirstCol := areFloatsEqual(x, elevationMap.MinX)
-			isLastCol := areFloatsEqual(x, elevationMap.MaxX-2*step)
-			if (e1 >= 0 && (isFirstCol || elevationMap.GetElevation(x, y-step) < floorElevation)) && (e3 >= 0) && (isFirstCol || elevationMap.GetElevation(y+step, x-step) < floorElevation) {
+			isFirstRow := areFloatsEqual(y, 0.0)
+			isLastRow := areFloatsEqual(y, elevationMap.GetHeight()-2*step)
+			isFirstCol := areFloatsEqual(x, 0.0)
+			isLastCol := areFloatsEqual(x, elevationMap.GetWidth()-2*step)
+
+			if (e1 >= 0 && (isFirstCol || elevationMap.GetElevation(mapX-step, mapY) < floorElevation)) && (e3 >= 0) && (isFirstCol || elevationMap.GetElevation(mapX-step, mapY+step) < floorElevation) {
 				writeWall(v1, v3, writeTriangle)
 			}
 
-			if (e2 >= 0 && (isLastCol || elevationMap.GetElevation(x+2*step, y) < floorElevation)) && (e4 >= 0) && (isLastCol || elevationMap.GetElevation(x+2*step, y+step) < floorElevation) {
+			if (e2 >= 0 && (isLastCol || elevationMap.GetElevation(mapX+2*step, mapY) < floorElevation)) && (e4 >= 0) && (isLastCol || elevationMap.GetElevation(mapX+2*step, mapY+step) < floorElevation) {
 				writeWall(v4, v2, writeTriangle)
 			}
 
-			if (e1 >= 0 && (isFirstRow || elevationMap.GetElevation(x, y-step) < floorElevation)) && (e2 >= 0) && (isFirstRow || elevationMap.GetElevation(x+step, y-step) < floorElevation) {
+			if (e1 >= 0 && (isFirstRow || elevationMap.GetElevation(mapX, mapY-step) < floorElevation)) && (e2 >= 0) && (isFirstRow || elevationMap.GetElevation(mapX+step, mapY-step) < floorElevation) {
 				writeWall(v2, v1, writeTriangle)
 			}
 
-			if (e3 >= 0 && (isLastRow || elevationMap.GetElevation(x, y+2*step) < floorElevation)) && (e4 >= 0) && (isLastRow || elevationMap.GetElevation(x+step, y+2*step) < floorElevation) {
+			if (e3 >= 0 && (isLastRow || elevationMap.GetElevation(mapX, mapY+2*step) < floorElevation)) && (e4 >= 0) && (isLastRow || elevationMap.GetElevation(mapX+step, mapY+2*step) < floorElevation) {
 				writeWall(v3, v4, writeTriangle)
 			}
 
