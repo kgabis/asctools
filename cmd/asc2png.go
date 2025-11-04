@@ -46,7 +46,7 @@ func Asc2Png(args []string) {
 
 	err = elevationMap.WritePNG(bufio.NewWriter(os.Stdout), scalingOperation, int(scale))
 	if err != nil {
-		fmt.Println("Error rendering map to bitmap:", err)
+		fmt.Println("Error rendering map to png:", err)
 		os.Exit(1)
 	}
 
