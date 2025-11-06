@@ -9,20 +9,14 @@ import (
 	asctools "github.com/kgabis/asctools/pkg"
 )
 
-func DiffAsc2Png(args []string) {
-	fs := flag.NewFlagSet("diffasc2png", flag.ExitOnError)
+func Subtract(args []string) {
+	fs := flag.NewFlagSet("subtract", flag.ExitOnError)
 
 	var input1 string
 	fs.StringVar(&input1, "input1", "", "Path to the input 1 .asc file")
 
 	var input2 string
 	fs.StringVar(&input2, "input2", "", "Path to the input 2 .asc file")
-
-	var diffOnly bool
-	fs.BoolVar(&diffOnly, "diff_only", false, "If true, skips elevation-based coloring and only uses difference-based coloring")
-
-	var diffPow float64
-	fs.Float64Var(&diffPow, "diff_pow", 1, "Power to which the elevation difference is raised for emphasis")
 
 	fs.Parse(args)
 
@@ -57,9 +51,15 @@ func DiffAsc2Png(args []string) {
 		os.Exit(1)
 	}
 
-	err = asctools.WriteDiffPNG(bufio.NewWriter(os.Stdout), elevationMap1, elevationMap2, diffPow, diffOnly)
+	result, err := elevationMap1.Subtract(elevationMap2)
 	if err != nil {
-		fmt.Println("Error rendering map diff to png:", err)
+		fmt.Println("Error subtracting elevation maps:", err)
+		os.Exit(1)
+	}
+
+	err = result.WriteASC(bufio.NewWriter(os.Stdout))
+	if err != nil {
+		fmt.Println("Error writing result to stdout:", err)
 		os.Exit(1)
 	}
 }

@@ -112,8 +112,30 @@ run_crop_test() {
     fi
 }
 
+run_subtract_test() {
+    local TEMP_OUTPUT="test/temp/subtracted.asc"
+    local EXPECTED_OUTPUT="test/subtracted.asc"
+    local INPUT1="test/1to9.asc"
+    local INPUT2="test/0to8.asc"
+
+    mkdir -p "$(dirname "$TEMP_OUTPUT")"
+
+    echo "Running subtract test..."
+    ./asctools subtract -input1 "$INPUT1" -input2 "$INPUT2" > "$TEMP_OUTPUT"
+
+    echo "Comparing subtract output files..."
+    if diff -q "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"; then
+        echo "✅ subtract Test PASSED: Files are identical."
+    else
+        echo "❌ subtract Test FAILED: Files are different."
+        diff "$TEMP_OUTPUT" "$EXPECTED_OUTPUT"
+        return 1
+    fi
+}
+
 run_merge_test
 run_split_test
 run_asc2png_test
 run_asc2stl_test
 run_crop_test
+run_subtract_test

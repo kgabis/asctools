@@ -67,11 +67,15 @@ func (elevationMap *ElevationMap) WritePNG(writer *bufio.Writer, scalingOperatio
 	return writer.Flush()
 }
 
-func WriteDiffPNG(writer *bufio.Writer, elevationMap1 *ElevationMap, elevationMap2 *ElevationMap, diffPow float64, skipElevation bool) error {
+func WriteDiffPNG(writer *bufio.Writer, elevationMap1 *ElevationMap, elevationMap2 *ElevationMap, diffPow float64, diffOnly bool) error {
 	minX := math.Max(elevationMap1.MinX, elevationMap2.MinX)
 	maxX := math.Min(elevationMap1.MaxX, elevationMap2.MaxX)
 	minY := math.Max(elevationMap1.MinY, elevationMap2.MinY)
 	maxY := math.Min(elevationMap1.MaxY, elevationMap2.MaxY)
+
+	if minX >= maxX || minY >= maxY {
+		return fmt.Errorf("elevation maps do not overlap")
+	}
 
 	imgWidth := int(elevationMap1.GetWidth() / elevationMap1.CellSize)
 	imgHeight := int(elevationMap1.GetHeight() / elevationMap1.CellSize)
@@ -127,7 +131,7 @@ func WriteDiffPNG(writer *bufio.Writer, elevationMap1 *ElevationMap, elevationMa
 
 				grayValue := uint16(emphasized * math.MaxUint16)
 				elevationColor := color.RGBA64{R: grayValue, G: grayValue, B: grayValue, A: math.MaxUint16}
-				if skipElevation {
+				if diffOnly {
 					elevationColor = color.RGBA64{R: 0, G: 0, B: 0, A: math.MaxUint16}
 				}
 				interpolationFactor := elevationDiff / maxDiff

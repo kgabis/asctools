@@ -27,6 +27,7 @@ type ElevationMap struct {
 func makeElevationMap(minX, minY, maxX, maxY, cellSize float64) *ElevationMap {
 	numRows := int((maxY - minY) / cellSize)
 	numCols := int((maxX - minX) / cellSize)
+
 	data := make([]float32, numRows*numCols)
 
 	for i := range data {
@@ -353,6 +354,33 @@ func (elevationMap *ElevationMap) Split(verTiles, horTiles int, uniformSize bool
 				return nil, err
 			}
 			result[row][col] = tile
+		}
+	}
+
+	return result, nil
+}
+
+func (elevationMap1 *ElevationMap) Subtract(elevationMap2 *ElevationMap) (*ElevationMap, error) {
+	minX := math.Max(elevationMap1.MinX, elevationMap2.MinX)
+	maxX := math.Min(elevationMap1.MaxX, elevationMap2.MaxX)
+	minY := math.Max(elevationMap1.MinY, elevationMap2.MinY)
+	maxY := math.Min(elevationMap1.MaxY, elevationMap2.MaxY)
+
+	if minX >= maxX || minY >= maxY {
+		return nil, fmt.Errorf("elevation maps do not overlap")
+	}
+
+	cellSize := math.Max(elevationMap1.CellSize, elevationMap2.CellSize)
+
+	result := makeElevationMap(minX, minY, maxX, maxY, cellSize)
+	for y := minY; y < maxY; y += cellSize {
+		for x := minX; x < maxX; x += cellSize {
+			val1 := elevationMap1.GetElevation(x, y)
+			val2 := elevationMap2.GetElevation(x, y)
+			if val1 == NodataValue || val2 == NodataValue {
+				continue
+			}
+			result.SetElevation(x, y, val1-val2)
 		}
 	}
 

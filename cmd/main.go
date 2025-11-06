@@ -27,6 +27,8 @@ func main() {
 		Denoise(os.Args[2:])
 	case "downscale":
 		Downscale(os.Args[2:])
+	case "subtract":
+		Subtract(os.Args[2:])
 	default:
 		fmt.Println("Unknown command")
 	}
